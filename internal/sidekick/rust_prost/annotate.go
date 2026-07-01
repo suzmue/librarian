@@ -16,6 +16,7 @@
 package rust_prost
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/googleapis/librarian/internal/license"
@@ -61,6 +62,7 @@ func (codec *codec) annotateModel(model *api.API, cfg *parser.ModelConfig) error
 		Files:             files,
 		PostProcessProtos: codec.PostProcessProtos,
 	}
+	fmt.Printf("DEBUG: Package %q, resolved Files: %v\n", annotations.PackageName, annotations.Files)
 	for _, s := range model.Services {
 		codec.annotateService(s)
 	}
