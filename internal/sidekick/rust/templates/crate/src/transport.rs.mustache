@@ -119,9 +119,9 @@ impl super::stub::{{Codec.Name}} for {{Codec.Name}} {
         crate::Response<{{Codec.ReturnType}}>,
         {{/Codec.ServerSideStreaming}}
     > {
-        use google_cloud_gax::grpc::tonic::{GrpcMethod, Extensions};
-        use google_cloud_gax::prost::{ConvertError, FromProto, ToProto};
-        use futures::StreamExt as _;
+        use gaxi::grpc::tonic::{GrpcMethod, Extensions};
+        use wkt::prost::{ConvertError, FromProto, ToProto};
+        use futures_util::StreamExt as _;
 
         let options = google_cloud_gax::options::internal::set_default_idempotency(
             options,
@@ -132,7 +132,7 @@ impl super::stub::{{Codec.Name}} for {{Codec.Name}} {
             e.insert(GrpcMethod::new("{{SourceService.Package}}.{{SourceService.Name}}", "{{Name}}"));
             e
         };
-        let path = http::uri::PathAndQuery::from_static(
+        let path = ::http::uri::PathAndQuery::from_static(
             "/{{SourceService.Package}}.{{SourceService.Name}}/{{Name}}"
         );
         let x_goog_request_params = "";

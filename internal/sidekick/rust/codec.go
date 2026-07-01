@@ -200,18 +200,26 @@ func newCodec(specificationFormat string, options map[string]string) (*codec, er
 	}
 	if codec.includeStreamingMethods {
 		foundFutures := false
+		foundFuturesUtil := false
 		foundProst := false
 		foundProstTypes := false
+		foundHttp := false
 		for _, p := range codec.extraPackages {
 			if p.name == "futures-core" {
 				p.used = true
 				foundFutures = true
+			} else if p.name == "futures-util" {
+				p.used = true
+				foundFuturesUtil = true
 			} else if p.name == "prost" {
 				p.used = true
 				foundProst = true
 			} else if p.name == "prost-types" {
 				p.used = true
 				foundProstTypes = true
+			} else if p.name == "http" {
+				p.used = true
+				foundHttp = true
 			} else if p.name == "gaxi" {
 				hasGrpcClient := false
 				hasGrpcServerStreaming := false
@@ -236,6 +244,12 @@ func newCodec(specificationFormat string, options map[string]string) (*codec, er
 				used: true,
 			})
 		}
+		if !foundFuturesUtil {
+			codec.extraPackages = append(codec.extraPackages, &packagez{
+				name: "futures-util",
+				used: true,
+			})
+		}
 		if !foundProst {
 			codec.extraPackages = append(codec.extraPackages, &packagez{
 				name: "prost",
@@ -245,6 +259,12 @@ func newCodec(specificationFormat string, options map[string]string) (*codec, er
 		if !foundProstTypes {
 			codec.extraPackages = append(codec.extraPackages, &packagez{
 				name: "prost-types",
+				used: true,
+			})
+		}
+		if !foundHttp {
+			codec.extraPackages = append(codec.extraPackages, &packagez{
+				name: "http",
 				used: true,
 			})
 		}
