@@ -58,6 +58,10 @@ type modelAnnotations struct {
 	DefaultSystemParameters []systemParameter
 	// Enables per-service features.
 	PerServiceFeatures bool
+	// If true, this includes gRPC streaming methods.
+	IncludeStreamingMethods bool
+	// If true, this includes gRPC-only methods.
+	IncludeGrpcOnlyMethods bool
 	// The set of default features, only applicable if `PerServiceFeatures` is
 	// true.
 	DefaultFeatures []string
@@ -248,6 +252,8 @@ func annotateModel(model *api.API, codec *codec) (*modelAnnotations, error) {
 		DisabledRustdocWarnings: codec.disabledRustdocWarnings,
 		DisabledClippyWarnings:  codec.disabledClippyWarnings,
 		PerServiceFeatures:      codec.perServiceFeatures && len(servicesSubset) > 0,
+		IncludeStreamingMethods:   codec.includeStreamingMethods,
+		IncludeGrpcOnlyMethods:    codec.includeGrpcOnlyMethods,
 		ExtraModules:            codec.extraModules,
 		Incomplete: slices.ContainsFunc(model.Services, func(s *api.Service) bool {
 			return slices.ContainsFunc(s.Methods, func(m *api.Method) bool { return !codec.generateMethod(m) })
