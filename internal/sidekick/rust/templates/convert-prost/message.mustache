@@ -24,9 +24,9 @@ limitations under the License.
 {{/OneOfs}}
 {{^Codec.SkipConversion}}
 
-impl gaxi::prost::ToProto<{{Codec.RelativeName}}> for {{Codec.QualifiedName}} {
+impl wkt::prost::ToProto<{{Codec.RelativeName}}> for {{Codec.QualifiedName}} {
     type Output = {{Codec.RelativeName}};
-    fn to_proto(self) -> std::result::Result<{{Codec.RelativeName}}, gaxi::prost::ConvertError> {
+    fn to_proto(self) -> std::result::Result<{{Codec.RelativeName}}, wkt::prost::ConvertError> {
         Ok(Self::Output {
             {{#Codec.BasicFields}}
             {{#Singular}}
@@ -52,7 +52,7 @@ impl gaxi::prost::ToProto<{{Codec.RelativeName}}> for {{Codec.QualifiedName}} {
             {{Codec.FieldName}}: self.{{Codec.FieldName}}
                 .into_iter()
                 .map(|(k, v)| {
-                    gaxi::prost::pair_transpose(k.to_proto(), v.to_proto())
+                    wkt::prost::pair_transpose(k.to_proto(), v.to_proto())
                 }).collect::<std::result::Result<std::collections::HashMap<_, _>, _>>()?,
             {{/Map}}
             {{/Codec.BasicFields}}
@@ -63,8 +63,8 @@ impl gaxi::prost::ToProto<{{Codec.RelativeName}}> for {{Codec.QualifiedName}} {
     }
 }
 
-impl gaxi::prost::FromProto<{{Codec.QualifiedName}}> for {{Codec.RelativeName}} {
-    fn cnv(self) -> std::result::Result<{{Codec.QualifiedName}}, gaxi::prost::ConvertError> {
+impl wkt::prost::FromProto<{{Codec.QualifiedName}}> for {{Codec.RelativeName}} {
+    fn cnv(self) -> std::result::Result<{{Codec.QualifiedName}}, wkt::prost::ConvertError> {
         Ok(
             {{Codec.QualifiedName}}::new()
                 {{#Codec.BasicFields}}
@@ -99,7 +99,7 @@ impl gaxi::prost::FromProto<{{Codec.QualifiedName}}> for {{Codec.RelativeName}} 
                 {{^Codec.ValueType.IsEnum}}
                 .set_{{Codec.SetterName}}(self.{{Codec.FieldName}}.into_iter()
                     .map(|(k, v)| {
-                        gaxi::prost::pair_transpose(k.cnv(), v.cnv())
+                        wkt::prost::pair_transpose(k.cnv(), v.cnv())
                     }).collect::<std::result::Result<std::collections::HashMap<_, _>, _>>()?)
                 {{/Codec.ValueType.IsEnum}}
                 {{/Map}}
