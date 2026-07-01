@@ -244,6 +244,14 @@ func TestParseOptions(t *testing.T) {
 						name: "prost-types",
 						used: true,
 					},
+					{
+						name: "thiserror",
+						used: true,
+					},
+					{
+						name: "base64",
+						used: true,
+					},
 				}
 			},
 		},
@@ -280,6 +288,14 @@ func TestParseOptions(t *testing.T) {
 					},
 					{
 						name: "prost-types",
+						used: true,
+					},
+					{
+						name: "thiserror",
+						used: true,
+					},
+					{
+						name: "base64",
 						used: true,
 					},
 				}

@@ -36,6 +36,7 @@ type oneOfAnnotation struct {
 	// The fully qualified name, relative to `codec.modulePath`. Typically this
 	// is the `QualifiedName` with the `crate::model::` prefix removed.
 	RelativeName string
+	RawTypeName  string
 	// The Rust `struct` that contains this oneof, fully qualified
 	StructQualifiedName string
 	// The fully qualified name for examples. For messages in external packages
@@ -88,6 +89,7 @@ func (c *codec) annotateOneOf(oneof *api.OneOf, message *api.Message, model *api
 		EnumName:            enumName,
 		QualifiedName:       qualifiedName,
 		RelativeName:        relativeEnumName,
+		RawTypeName:         "crate::prost::" + packageToModuleName(message.Package) + "::" + rawParentPath(message) + toPascal(oneof.Name),
 		StructQualifiedName: structQualifiedName,
 		NameInExamples:      nameInExamples,
 		FieldType:           fmt.Sprintf("%s::%s", scope, enumName),

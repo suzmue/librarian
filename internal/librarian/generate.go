@@ -289,7 +289,7 @@ func generateLibraries(ctx context.Context, cfg *config.Config, libraries []*con
 			return err
 		}
 		for _, library := range libraries {
-			if err := rust.Format(ctx, library); err != nil {
+			if err := rust.FormatRust(ctx, library); err != nil {
 				return fmt.Errorf("format library %q (%s): %w", library.Name, cfg.Language, err)
 			}
 		}

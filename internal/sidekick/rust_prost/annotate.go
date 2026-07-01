@@ -62,18 +62,6 @@ func (codec *codec) annotateModel(model *api.API, cfg *parser.ModelConfig) error
 	}
 	packageName := rust.PackageName(model, codec.PackageName)
 	var externPaths []ExternPath
-	if packageName != "google-cloud-rpc" {
-		externPaths = append(externPaths, ExternPath{
-			ProtoPath: ".google.rpc",
-			RustPath:  "::google_cloud_rpc::prost",
-		})
-	}
-	if packageName != "google-cloud-longrunning" {
-		externPaths = append(externPaths, ExternPath{
-			ProtoPath: ".google.longrunning",
-			RustPath:  "::google_cloud_longrunning::prost",
-		})
-	}
 	annotations := &modelAnnotations{
 		CopyrightYear: codec.GenerationYear,
 		BoilerPlate: append(license.HeaderBulk(),

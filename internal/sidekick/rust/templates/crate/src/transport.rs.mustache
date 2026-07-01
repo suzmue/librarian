@@ -120,7 +120,7 @@ impl super::stub::{{Codec.Name}} for {{Codec.Name}} {
         {{/Codec.ServerSideStreaming}}
     > {
         use gaxi::grpc::tonic::{GrpcMethod, Extensions};
-        use wkt::prost::{ConvertError, FromProto, ToProto};
+        use crate::convert::{FromProto, ToProto};
         use futures_util::StreamExt as _;
 
         let options = google_cloud_gax::options::internal::set_default_idempotency(
@@ -148,7 +148,7 @@ impl super::stub::{{Codec.Name}} for {{Codec.Name}} {
                 req.map(|v| v.to_proto().expect("request serialization failed")),
                 options,
                 &crate::info::X_GOOG_API_CLIENT_HEADER,
-                &x_goog_request_params,
+                x_goog_request_params,
             )
             .await?;
         Ok(google_cloud_gax::streaming::ResponseStream::from_stream(
@@ -167,7 +167,7 @@ impl super::stub::{{Codec.Name}} for {{Codec.Name}} {
                 req.to_proto().map_err(Error::deser)?,
                 options,
                 &crate::info::X_GOOG_API_CLIENT_HEADER,
-                &x_goog_request_params,
+                x_goog_request_params,
             )
             .await?;
         Ok(google_cloud_gax::streaming::ResponseStream::from_stream(

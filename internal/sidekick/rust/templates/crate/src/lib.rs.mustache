@@ -162,3 +162,11 @@ pub(crate) use google_cloud_gax::response::Response;
 #[allow(missing_docs)]
 pub mod {{{.}}};
 {{/Codec.ExtraModules}}
+{{#Codec.InternalModules}}
+
+#[allow(missing_docs)]
+#[allow(dead_code)]
+#[allow(clippy::enum_variant_names)]
+#[allow(clippy::large_enum_variant)]
+pub(crate) mod {{{.}}};
+{{/Codec.InternalModules}}

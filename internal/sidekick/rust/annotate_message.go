@@ -31,6 +31,7 @@ type messageAnnotation struct {
 	// The fully qualified name, relative to `codec.modulePath`. Typically this
 	// is the `QualifiedName` with the `crate::model::` prefix removed.
 	RelativeName string
+	RawTypeName  string
 	// The fully qualified name for examples. For messages in external packages
 	// this is basically `QualifiedName`. For messages in the current package
 	// this includes `modelAnnotations.PackageName`.
@@ -77,6 +78,7 @@ func (c *codec) annotateMessage(m *api.Message, model *api.API, full bool) error
 		ModuleName:        toSnake(m.Name),
 		QualifiedName:     qualifiedName,
 		RelativeName:      relativeName,
+		RawTypeName:       "crate::prost::" + packageToModuleName(m.Package) + "::" + rawParentPath(m.Parent) + toPascal(m.Name),
 		NameInExamples:    nameInExamples,
 		PackageModuleName: packageToModuleName(m.Package),
 		SourceFQN:         strings.TrimPrefix(m.ID, "."),
@@ -121,4 +123,11 @@ func (c *codec) annotateMessage(m *api.Message, model *api.API, full bool) error
 	annotations.BasicFields = basicFields
 	annotations.Internal = slices.Contains(c.internalTypes, m.ID)
 	return nil
+}
+
+func rawParentPath(m *api.Message) string {
+	if m == nil {
+		return ""
+	}
+	return rawParentPath(m.Parent) + toSnake(m.Name) + "::"
 }

@@ -103,9 +103,18 @@ pub mod {{Codec.ModuleName}} {
     /// }
     {{/Pagination}}
     {{^Pagination}}
+    {{#Codec.ClientSideStreaming}}
+    ///
+    /// let builder = prepare_request_builder();
+    /// let request = prepare_request();
+    /// let rx = google_cloud_gax::streaming::RequestStream::from_iter(vec![request]);
+    /// let response = builder.send(rx).await?;
+    {{/Codec.ClientSideStreaming}}
+    {{^Codec.ClientSideStreaming}}
     ///
     /// let builder = prepare_request_builder();
     /// let response = builder.send().await?;
+    {{/Codec.ClientSideStreaming}}
     {{/Pagination}}
     {{/OperationInfo}}
     /// # Ok(()) }
@@ -114,6 +123,13 @@ pub mod {{Codec.ModuleName}} {
     ///   # panic!();
     ///   // ... details omitted ...
     /// }
+    {{#Codec.ClientSideStreaming}}
+    ///
+    /// fn prepare_request() -> {{InputType.Codec.NameInExamples}} {
+    ///   # panic!();
+    ///   // ... details omitted ...
+    /// }
+    {{/Codec.ClientSideStreaming}}
     /// ```
     {{/Codec.InternalBuilders}}
     #[derive(Clone, Debug)]

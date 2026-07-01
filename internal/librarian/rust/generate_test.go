@@ -17,6 +17,7 @@ package rust
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -25,6 +26,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/googleapis/librarian/internal/command"
 	"github.com/googleapis/librarian/internal/config"
 	"github.com/googleapis/librarian/internal/repometadata"
 	"github.com/googleapis/librarian/internal/sources"
@@ -781,6 +783,8 @@ func TestGenerate_Streaming(t *testing.T) {
 
 	// Change to testdata directory so cargo fmt can find Cargo.toml
 	t.Chdir(workspaceDir)
+	command.Verbose = true
+	t.Cleanup(func() { command.Verbose = false })
 
 	libName := "google-cloud-secretmanager-v1"
 	outDir := filepath.Join(workspaceDir, libName)
@@ -788,7 +792,7 @@ func TestGenerate_Streaming(t *testing.T) {
 	if err := os.RemoveAll(outDir); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { os.RemoveAll(outDir) })
+	// t.Cleanup(func() { os.RemoveAll(outDir) })
 
 	library := &config.Library{
 		Name:          libName,
@@ -828,8 +832,8 @@ func TestGenerate_Streaming(t *testing.T) {
 		{filepath.Join(outDir, "Cargo.toml"), libName},
 		{filepath.Join(outDir, "src", "lib.rs"), "pub mod model;"},
 		{filepath.Join(outDir, "src", "lib.rs"), "pub mod client;"},
-		{filepath.Join(outDir, "src", "lib.rs"), "pub mod prost;"},
-		{filepath.Join(outDir, "src", "lib.rs"), "pub mod convert;"},
+		{filepath.Join(outDir, "src", "lib.rs"), "pub(crate) mod prost;"},
+		{filepath.Join(outDir, "src", "lib.rs"), "pub(crate) mod convert;"},
 		{filepath.Join(outDir, "src", "convert.rs"), "use crate::prost::*;"},
 		// We expect the generated prost file to exist.
 		// The package name is google.cloud.secretmanager.v1, so the file name should be google.cloud.secretmanager.v1.rs.
@@ -843,8 +847,45 @@ func TestGenerate_Streaming(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !strings.Contains(string(got), check.want) {
-				t.Errorf("%q missing expected string: %q", check.path, check.want)
+			contains := strings.Contains(string(got), check.want)
+			idxFull := strings.Index(string(got), check.want)
+			t.Logf("DEBUG: contains=%t, idxFull=%d", contains, idxFull)
+			if !contains {
+				idx := strings.Index(string(got), "use crate::")
+				var debugInfo string
+				if idx != -1 {
+					end := idx + 50
+					if end > len(got) {
+						end = len(got)
+					}
+					// Ensure we don't slice out of bounds if got is shorter than idx+len(check.want)
+					sliceEnd := idx + len(check.want)
+					if sliceEnd > len(got) {
+						sliceEnd = len(got)
+					}
+					var prevByte byte
+					if idx > 0 {
+						prevByte = got[idx-1]
+					}
+					debugInfo = fmt.Sprintf("Found 'use crate::' at %d (file len %d). Prev byte: %d (%q). Context: %q. Got bytes: %v. Want bytes: %v",
+						idx, len(got), prevByte, string([]byte{prevByte}), string(got[idx:end]), got[idx:sliceEnd], []byte(check.want))
+				} else {
+					debugInfo = "Could not find 'use crate::'"
+				}
+				limit := 500
+				if len(got) < limit {
+					limit = len(got)
+				}
+				t.Logf("FULL CONTENT:\n%s", string(got))
+				t.Errorf("%q missing expected string: %q. %s. Got start: %q", check.path, check.want, debugInfo, string(got[:limit]))
+
+				// Write to failed_convert.rs for inspection
+				debugPath := filepath.Join(outDir, "src", "convert.rs.failed")
+				if err := os.WriteFile(debugPath, got, 0644); err != nil {
+					t.Logf("Failed to write debug file: %v", err)
+				} else {
+					t.Logf("Wrote failed file content to %s", debugPath)
+				}
 			}
 		})
 	}
@@ -1016,7 +1057,7 @@ func assertDirParity(t *testing.T, expectedDir, actualDir string, ignoreFiles []
 			expectedClean := strings.Join(strings.Fields(string(expectedContent)), " ")
 			actualClean := strings.Join(strings.Fields(string(actualContent)), " ")
 			if expectedClean != actualClean {
-				t.Errorf("file content mismatch for %s\nExpected:\n%s\nActual:\n%s", relPath, string(expectedContent), string(actualContent))
+				t.Errorf("file content mismatch for %s\ndiff (-expected +actual):\n%s", relPath, cmp.Diff(string(expectedContent), string(actualContent)))
 			}
 		}
 		return nil

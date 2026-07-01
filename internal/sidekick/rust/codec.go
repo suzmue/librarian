@@ -160,6 +160,8 @@ func newCodec(specificationFormat string, options map[string]string) (*codec, er
 			codec.hasVeneer = value
 		case key == "extra-modules":
 			codec.extraModules = splitOption(definition)
+		case key == "internal-modules":
+			codec.internalModules = splitOption(definition)
 		case key == "internal-types":
 			codec.internalTypes = splitOption(definition)
 		case key == "routing-required":
@@ -278,6 +280,34 @@ func newCodec(specificationFormat string, options map[string]string) (*codec, er
 		if !foundHttp {
 			codec.extraPackages = append(codec.extraPackages, &packagez{
 				name: "http",
+				used: true,
+			})
+		}
+		foundThiserror := false
+		for _, p := range codec.extraPackages {
+			if p.name == "thiserror" {
+				p.used = true
+				foundThiserror = true
+				break
+			}
+		}
+		if !foundThiserror {
+			codec.extraPackages = append(codec.extraPackages, &packagez{
+				name: "thiserror",
+				used: true,
+			})
+		}
+		foundBase64 := false
+		for _, p := range codec.extraPackages {
+			if p.name == "base64" {
+				p.used = true
+				foundBase64 = true
+				break
+			}
+		}
+		if !foundBase64 {
+			codec.extraPackages = append(codec.extraPackages, &packagez{
+				name: "base64",
 				used: true,
 			})
 		}
@@ -406,6 +436,8 @@ type codec struct {
 	hasVeneer bool
 	// Additional modules, maybe with hand-crafted code.
 	extraModules []string
+	// Internal modules, which should be `pub(crate)`.
+	internalModules []string
 	// A list of types which should only be `pub(crate)`.
 	//
 	// In rare cases, it is easiest to manage type visibility via the codec

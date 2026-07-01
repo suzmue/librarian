@@ -33,6 +33,7 @@ type enumAnnotation struct {
 	// The fully qualified name, relative to `codec.modulePath`. Typically this
 	// is the `QualifiedName` with the `crate::model::` prefix removed.
 	RelativeName string
+	RawTypeName  string
 	// The fully qualified name for examples. For messages in external packages
 	// this is basically `QualifiedName`. For messages in the current package
 	// this includes `modelAnnotations.PackageName`.
@@ -97,6 +98,7 @@ func (c *codec) annotateEnum(e *api.Enum, model *api.API, full bool) error {
 		ModuleName:     toSnake(enumName(e)),
 		QualifiedName:  qualifiedName,
 		RelativeName:   relativeName,
+		RawTypeName:    "crate::prost::" + packageToModuleName(e.Package) + "::" + rawParentPath(e.Parent) + enumName(e),
 		NameInExamples: nameInExamples,
 		IsWktNullValue: nameInExamples == "wkt::NullValue",
 	}

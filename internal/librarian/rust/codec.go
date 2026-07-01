@@ -115,11 +115,15 @@ func buildCodec(library *config.Library, releaseLevel string) map[string]string 
 		codec["not-for-publication"] = "true"
 	}
 	extra := extraModulesFromKeep(library.Keep)
+	var internal []string
 	if library.Rust != nil && library.Rust.IncludeStreamingMethods {
-		extra = append(extra, "prost", "convert")
+		internal = append(internal, "prost", "convert")
 	}
 	if len(extra) > 0 {
 		codec["extra-modules"] = strings.Join(extra, ",")
+	}
+	if len(internal) > 0 {
+		codec["internal-modules"] = strings.Join(internal, ",")
 	}
 	if library.Rust == nil {
 		return codec

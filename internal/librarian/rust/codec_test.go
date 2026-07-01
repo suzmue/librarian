@@ -1386,7 +1386,7 @@ func TestBuildCodec(t *testing.T) {
 				"template-override":           "custom-template",
 				"include-grpc-only-methods":   "true",
 				"include-streaming-methods":   "true",
-				"extra-modules":               "prost,convert",
+				"internal-modules":            "prost,convert",
 				"per-service-features":        "true",
 				"detailed-tracing-attributes": "true",
 				"has-veneer":                  "true",

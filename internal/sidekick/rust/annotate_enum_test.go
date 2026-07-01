@@ -72,6 +72,7 @@ func TestEnumAnnotations(t *testing.T) {
 		ModuleName:     "test_enum",
 		QualifiedName:  "crate::model::TestEnum",
 		RelativeName:   "TestEnum",
+		RawTypeName:    "crate::prost::test::v1::TestEnum",
 		DocLines:       []string{"/// The enum is documented."},
 		UniqueNames:    []*api.EnumValue{v0, v1, v2, v3, v4},
 		NameInExamples: "google_cloud_test_v1::model::TestEnum",
@@ -171,6 +172,7 @@ func TestDuplicateEnumValueAnnotations(t *testing.T) {
 		ModuleName:     "test_enum",
 		QualifiedName:  "crate::model::TestEnum",
 		RelativeName:   "TestEnum",
+		RawTypeName:    "crate::prost::test::v1::TestEnum",
 		UniqueNames:    []*api.EnumValue{v0, v2},
 		NameInExamples: "google_cloud_test_v1::model::TestEnum",
 	}

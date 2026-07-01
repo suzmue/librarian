@@ -67,6 +67,8 @@ type modelAnnotations struct {
 	DefaultFeatures []string
 	// A list of additional modules loaded by the `lib.rs` file.
 	ExtraModules []string
+	// A list of internal modules loaded by the `lib.rs` file.
+	InternalModules []string
 	// If true, at lease one service has a method we cannot wrap (yet).
 	Incomplete bool
 	// If true, the generator will produce reference documentation samples for message fields setters.
@@ -255,6 +257,7 @@ func annotateModel(model *api.API, codec *codec) (*modelAnnotations, error) {
 		IncludeStreamingMethods: codec.includeStreamingMethods,
 		IncludeGrpcOnlyMethods:  codec.includeGrpcOnlyMethods,
 		ExtraModules:            codec.extraModules,
+		InternalModules:         codec.internalModules,
 		Incomplete: slices.ContainsFunc(model.Services, func(s *api.Service) bool {
 			return slices.ContainsFunc(s.Methods, func(m *api.Method) bool { return !codec.generateMethod(m) })
 		}),
