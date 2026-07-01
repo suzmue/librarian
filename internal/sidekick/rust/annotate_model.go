@@ -268,6 +268,7 @@ func annotateModel(model *api.API, codec *codec) (*modelAnnotations, error) {
 
 	codec.addFeatureAnnotations(model, ann)
 
+	fmt.Printf("DEBUG: Package %q, IncludeStreamingMethods: %v\n", ann.PackageName, ann.IncludeStreamingMethods)
 	model.Codec = ann
 	return ann, nil
 }

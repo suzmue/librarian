@@ -56,6 +56,8 @@ type serviceAnnotations struct {
 	DetailedTracingAttributes bool
 	// If true, the generated builders's visibility should be restricted to the crate.
 	InternalBuilders bool
+	// If true, this service includes gRPC streaming methods.
+	IncludeStreamingMethods bool
 }
 
 // BuilderVisibility returns the visibility for client and request builders.
@@ -130,6 +132,7 @@ func (c *codec) annotateService(s *api.Service) (*serviceAnnotations, error) {
 		Incomplete:                slices.ContainsFunc(s.Methods, func(m *api.Method) bool { return !c.generateMethod(m) }),
 		DetailedTracingAttributes: c.detailedTracingAttributes,
 		InternalBuilders:          c.internalBuilders,
+		IncludeStreamingMethods:   c.includeStreamingMethods,
 	}
 	s.Codec = ann
 	return ann, nil
