@@ -90,7 +90,12 @@ func buildRS(ctx context.Context, rootName, tmpDir, outDir string) error {
 	cmd.Env = append(cmd.Env, fmt.Sprintf("DEST=%s", absOutDir))
 	cmd.Env = append(cmd.Env, fmt.Sprintf("PROTOC=%s", protocPath))
 	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("%v: %v\n%s", cmd, err, output)
+		buildRsPath := filepath.Join(tmpDir, "build.rs")
+		buildRsContent, readErr := os.ReadFile(buildRsPath)
+		if readErr != nil {
+			buildRsContent = []byte(fmt.Sprintf("<failed to read build.rs: %v>", readErr))
+		}
+		return fmt.Errorf("%v (SOURCE_ROOT=%q, DEST=%q, PROTOC=%q, tmpDir=%q): %v\n%s\n--- build.rs ---\n%s", cmd, absRoot, absOutDir, protocPath, tmpDir, err, output, string(buildRsContent))
 	}
 	return nil
 }

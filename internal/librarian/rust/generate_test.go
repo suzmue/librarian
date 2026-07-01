@@ -849,3 +849,180 @@ func TestGenerate_Streaming(t *testing.T) {
 		})
 	}
 }
+
+func TestGenerate_StreamingParity(t *testing.T) {
+	testhelper.RequireCommand(t, "protoc")
+	testhelper.RequireCommand(t, "rustfmt")
+	testhelper.RequireCommand(t, "taplo")
+	testhelper.RequireCommand(t, "cargo")
+
+	googleapisDir, err := filepath.Abs("../../testdata/googleapis")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Mock validate to speed up the test.
+	oldValidate := validate
+	validate = func(ctx context.Context, outputDir string) error { return nil }
+	t.Cleanup(func() { validate = oldValidate })
+
+	outDirDynamic := t.TempDir()
+	outDirStatic := t.TempDir()
+
+	libName := "google-cloud-secretmanager-v1"
+
+	libraryDynamic := &config.Library{
+		Name:          libName,
+		Version:       "0.1.0",
+		Output:        outDirDynamic,
+		CopyrightYear: "2025",
+		APIs: []*config.API{
+			{
+				Path: "google/cloud/secretmanager/v1",
+			},
+		},
+		Rust: &config.RustCrate{
+			RustDefault: config.RustDefault{
+				PackageDependencies: []*config.RustPackageDependency{
+					{Name: "wkt", Package: "google-cloud-wkt", Source: "google.protobuf"},
+					{Name: "iam_v1", Package: "google-cloud-iam-v1", Source: "google.iam.v1"},
+					{Name: "location", Package: "google-cloud-location", Source: "google.cloud.location"},
+					{Name: "google-cloud-api", Package: "google-cloud-api", Source: "google.api"},
+					{Name: "google-cloud-type", Package: "google-cloud-type", Source: "google.type"},
+				},
+			},
+			IncludeStreamingMethods: true,
+		},
+	}
+
+	libraryStatic := &config.Library{
+		Name:          libName,
+		Version:       "0.1.0",
+		Output:        outDirStatic,
+		CopyrightYear: "2025",
+		APIs: []*config.API{
+			{
+				Path: "google/cloud/secretmanager/v1",
+			},
+		},
+		Rust: &config.RustCrate{
+			RustDefault: config.RustDefault{
+				PackageDependencies: []*config.RustPackageDependency{
+					{Name: "wkt", Package: "google-cloud-wkt", Source: "google.protobuf"},
+					{Name: "iam_v1", Package: "google-cloud-iam-v1", Source: "google.iam.v1"},
+					{Name: "location", Package: "google-cloud-location", Source: "google.cloud.location"},
+					{Name: "google-cloud-api", Package: "google-cloud-api", Source: "google.api"},
+					{Name: "google-cloud-type", Package: "google-cloud-type", Source: "google.type"},
+				},
+			},
+			IncludeStreamingMethods: true,
+			Modules: []*config.RustModule{
+				{
+					Template:                "",
+					Output:                  outDirStatic,
+					APIPath:                 "google/cloud/secretmanager/v1",
+					IncludeStreamingMethods: true,
+				},
+				{
+					Template:                "prost",
+					Output:                  filepath.Join(outDirStatic, "src", "prost"),
+					APIPath:                 "google/cloud/secretmanager/v1",
+					IncludeStreamingMethods: true,
+				},
+				{
+					Template:                "convert-prost",
+					Output:                  filepath.Join(outDirStatic, "src"),
+					APIPath:                 "google/cloud/secretmanager/v1",
+					IncludeStreamingMethods: true,
+				},
+			},
+		},
+	}
+
+	sources := &sources.Sources{
+		Googleapis: googleapisDir,
+	}
+
+	if err := Generate(t.Context(), &config.Config{Language: "rust", Repo: "google-cloud-rust"}, libraryDynamic, sources); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.MkdirAll(filepath.Join(outDirStatic, "src", "prost"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Generate(t.Context(), &config.Config{Language: "rust", Repo: "google-cloud-rust"}, libraryStatic, sources); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify that the generated prost files are identical
+	assertDirParity(t, filepath.Join(outDirDynamic, "src", "prost"), filepath.Join(outDirStatic, "src", "prost"), nil)
+
+	// Verify that the generated convert.rs files are identical
+	expectedConvert, err := os.ReadFile(filepath.Join(outDirDynamic, "src", "convert.rs"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	actualConvert, err := os.ReadFile(filepath.Join(outDirStatic, "src", "convert.rs"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(expectedConvert) != string(actualConvert) {
+		t.Errorf("convert.rs mismatch\nExpected:\n%s\nActual:\n%s", string(expectedConvert), string(actualConvert))
+	}
+}
+
+func assertDirParity(t *testing.T, expectedDir, actualDir string, ignoreFiles []string) {
+	t.Helper()
+	ignoreSet := make(map[string]bool)
+	for _, f := range ignoreFiles {
+		ignoreSet[filepath.Clean(f)] = true
+	}
+
+	err := filepath.WalkDir(expectedDir, func(expectedPath string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		relPath, err := filepath.Rel(expectedDir, expectedPath)
+		if err != nil {
+			return err
+		}
+		if ignoreSet[filepath.Clean(relPath)] {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		actualPath := filepath.Join(actualDir, relPath)
+		if d.IsDir() {
+			if _, err := os.Stat(actualPath); err != nil {
+				t.Errorf("expected directory %s missing in actual output", relPath)
+			}
+			return nil
+		}
+
+		// Compare file content
+		expectedContent, err := os.ReadFile(expectedPath)
+		if err != nil {
+			return err
+		}
+		actualContent, err := os.ReadFile(actualPath)
+		if err != nil {
+			t.Errorf("expected file %s missing in actual output", relPath)
+			return nil
+		}
+		if string(expectedContent) != string(actualContent) {
+			// Check if they are just whitespace diffs
+			expectedClean := strings.Join(strings.Fields(string(expectedContent)), " ")
+			actualClean := strings.Join(strings.Fields(string(actualContent)), " ")
+			if expectedClean != actualClean {
+				t.Errorf("file content mismatch for %s\nExpected:\n%s\nActual:\n%s", relPath, string(expectedContent), string(actualContent))
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
