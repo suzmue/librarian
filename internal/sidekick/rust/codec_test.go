@@ -223,6 +223,12 @@ func TestParseOptions(t *testing.T) {
 			},
 			Update: func(c *codec) {
 				c.includeStreamingMethods = true
+				c.extraPackages = []*packagez{
+					{
+						name: "futures-core",
+						used: true,
+					},
+				}
 			},
 		},
 		{

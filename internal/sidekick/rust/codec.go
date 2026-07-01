@@ -198,6 +198,22 @@ func newCodec(specificationFormat string, options map[string]string) (*codec, er
 			return nil, fmt.Errorf("unknown Rust codec option %q", key)
 		}
 	}
+	if codec.includeStreamingMethods {
+		found := false
+		for _, p := range codec.extraPackages {
+			if p.name == "futures-core" {
+				p.used = true
+				found = true
+				break
+			}
+		}
+		if !found {
+			codec.extraPackages = append(codec.extraPackages, &packagez{
+				name: "futures-core",
+				used: true,
+			})
+		}
+	}
 	return codec, nil
 }
 
