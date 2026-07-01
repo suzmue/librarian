@@ -265,11 +265,60 @@ func annotateMethodModel(t *testing.T) *api.API {
 			},
 		},
 	}
+	methodClientStreaming := &api.Method{
+		Name:                "ClientStreaming",
+		ID:                  ".test.v1.ResourceService.ClientStreaming",
+		InputType:           request,
+		InputTypeID:         ".test.v1.Request",
+		OutputTypeID:        ".test.v1.Response",
+		ClientSideStreaming: true,
+		PathInfo: &api.PathInfo{
+			Bindings: []*api.PathBinding{
+				{
+					Verb:         "POST",
+					PathTemplate: &api.PathTemplate{},
+				},
+			},
+		},
+	}
+	methodServerStreaming := &api.Method{
+		Name:                "ServerStreaming",
+		ID:                  ".test.v1.ResourceService.ServerStreaming",
+		InputType:           request,
+		InputTypeID:         ".test.v1.Request",
+		OutputTypeID:        ".test.v1.Response",
+		ServerSideStreaming: true,
+		PathInfo: &api.PathInfo{
+			Bindings: []*api.PathBinding{
+				{
+					Verb:         "POST",
+					PathTemplate: &api.PathTemplate{},
+				},
+			},
+		},
+	}
+	methodBidiStreaming := &api.Method{
+		Name:                "BidiStreaming",
+		ID:                  ".test.v1.ResourceService.BidiStreaming",
+		InputType:           request,
+		InputTypeID:         ".test.v1.Request",
+		OutputTypeID:        ".test.v1.Response",
+		ClientSideStreaming: true,
+		ServerSideStreaming: true,
+		PathInfo: &api.PathInfo{
+			Bindings: []*api.PathBinding{
+				{
+					Verb:         "POST",
+					PathTemplate: &api.PathTemplate{},
+				},
+			},
+		},
+	}
 	service := &api.Service{
 		Name:    "ResourceService",
 		ID:      ".test.v1.ResourceService",
 		Package: "test.v1",
-		Methods: []*api.Method{methodMove, methodDelete, methodSelf},
+		Methods: []*api.Method{methodMove, methodDelete, methodSelf, methodClientStreaming, methodServerStreaming, methodBidiStreaming},
 	}
 
 	model := api.NewTestAPI(
@@ -567,5 +616,85 @@ func TestMethodAnnotationsDetailedTracing(t *testing.T) {
 	got := method.Codec.(*methodAnnotation)
 	if !got.DetailedTracingAttributes {
 		t.Errorf("methodAnnotation.DetailedTracingAttributes = %v, want %v", got.DetailedTracingAttributes, true)
+	}
+}
+
+func TestAnnotateMethodStreaming(t *testing.T) {
+	model := annotateMethodModel(t)
+	err := api.CrossReference(model)
+	if err != nil {
+		t.Fatal(err)
+	}
+	codec := newTestCodec(t, libconfig.SpecProtobuf, "", map[string]string{
+		"include-grpc-only-methods": "true",
+		"include-streaming-methods": "true",
+	})
+	_, err = annotateModel(model, codec)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, test := range []struct {
+		MethodID string
+		Want     *methodAnnotation
+	}{
+		{
+			MethodID: ".test.v1.ResourceService.move",
+			Want: &methodAnnotation{
+				IsStreaming:         false,
+				ClientSideStreaming: false,
+				ServerSideStreaming: false,
+				BidiStreaming:       false,
+			},
+		},
+		{
+			MethodID: ".test.v1.ResourceService.ClientStreaming",
+			Want: &methodAnnotation{
+				IsStreaming:         true,
+				ClientSideStreaming: true,
+				ServerSideStreaming: false,
+				BidiStreaming:       false,
+			},
+		},
+		{
+			MethodID: ".test.v1.ResourceService.ServerStreaming",
+			Want: &methodAnnotation{
+				IsStreaming:         true,
+				ClientSideStreaming: false,
+				ServerSideStreaming: true,
+				BidiStreaming:       false,
+			},
+		},
+		{
+			MethodID: ".test.v1.ResourceService.BidiStreaming",
+			Want: &methodAnnotation{
+				IsStreaming:         true,
+				ClientSideStreaming: true,
+				ServerSideStreaming: true,
+				BidiStreaming:       true,
+			},
+		},
+	} {
+		gotMethod := model.Method(test.MethodID)
+		if gotMethod == nil {
+			t.Errorf("missing method %s", test.MethodID)
+			continue
+		}
+		got := gotMethod.Codec.(*methodAnnotation)
+		gotStreaming := &methodAnnotation{
+			IsStreaming:         got.IsStreaming,
+			ClientSideStreaming: got.ClientSideStreaming,
+			ServerSideStreaming: got.ServerSideStreaming,
+			BidiStreaming:       got.BidiStreaming,
+		}
+		if diff := cmp.Diff(test.Want, gotStreaming, cmpopts.IgnoreFields(methodAnnotation{},
+			"Name", "NameNoMangling", "BuilderName", "Body", "DocLines",
+			"ServiceNameToPascal", "ServiceNameToCamel", "ServiceNameToSnake",
+			"SystemParameters", "ReturnType", "PathInfo", "Attributes",
+			"RoutingRequired", "DetailedTracingAttributes",
+			"ResourceNameTemplateGrpc", "GrpcResourceNameArgs",
+			"InternalBuilders")); diff != "" {
+			t.Errorf("mismatch for %s (-want +got):\n%s", test.MethodID, diff)
+		}
 	}
 }

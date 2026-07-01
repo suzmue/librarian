@@ -46,6 +46,10 @@ type methodAnnotation struct {
 	GrpcResourceNameArgs      []string
 	IsLroPoller               bool
 	IsDiscoveryLro            bool
+	IsStreaming               bool
+	ClientSideStreaming       bool
+	ServerSideStreaming       bool
+	BidiStreaming             bool
 }
 
 // HasGrpcResourceNameArgs returns true if the method has gRPC resource name arguments.
@@ -316,6 +320,10 @@ func (c *codec) annotateMethod(m *api.Method) (*methodAnnotation, error) {
 		InternalBuilders:          c.internalBuilders,
 		IsLroPoller:               m.IsLroPoller,
 		IsDiscoveryLro:            isDiscoveryLro(m),
+		IsStreaming:               m.ClientSideStreaming || m.ServerSideStreaming,
+		ClientSideStreaming:       m.ClientSideStreaming,
+		ServerSideStreaming:       m.ServerSideStreaming,
+		BidiStreaming:             m.ClientSideStreaming && m.ServerSideStreaming,
 	}
 
 	if err := c.annotateResourceNameGeneration(m, annotation); err != nil {
