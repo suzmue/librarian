@@ -72,7 +72,12 @@ pub trait {{Codec.Name}}: std::fmt::Debug + Send + Sync {
             {{/Codec.ServerSideStreaming}}
         >,
     > + Send {
+        {{#Codec.ServerSideStreaming}}
+        async { unimplemented!("{}", gaxi::unimplemented::UNIMPLEMENTED) }
+        {{/Codec.ServerSideStreaming}}
+        {{^Codec.ServerSideStreaming}}
         gaxi::unimplemented::unimplemented_stub()
+        {{/Codec.ServerSideStreaming}}
     }
     {{/Codec.Methods}}
     {{#Codec.HasLROs}}

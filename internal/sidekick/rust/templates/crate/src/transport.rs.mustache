@@ -139,19 +139,22 @@ impl super::stub::{{Codec.Name}} for {{Codec.Name}} {
 
         {{#Codec.BidiStreaming}}
         let result = self.grpc_client
-            .bidi_stream(
+            .bidi_stream::<
+                crate::prost::{{InputType.Codec.PackageModuleName}}::{{InputType.Codec.Name}},
+                crate::prost::{{OutputType.Codec.PackageModuleName}}::{{OutputType.Codec.Name}},
+            >(
                 extensions,
                 path,
-                req,
+                req.map(|v| v.to_proto().expect("request serialization failed")),
                 options,
                 &crate::info::X_GOOG_API_CLIENT_HEADER,
                 &x_goog_request_params,
             )
             .await?;
-        Ok(google_cloud_gax::streaming::ResponseStream::new(
+        Ok(google_cloud_gax::streaming::ResponseStream::from_stream(
             result.into_inner().map(|res| {
-                res.map_err(google_cloud_gax::error::Error::from)
-                    .and_then(|m| m.cnv())
+                res.map_err(gaxi::grpc::from_status::to_gax_error)
+                    .and_then(|m| m.cnv().map_err(google_cloud_gax::error::Error::deser))
             })
         ))
         {{/Codec.BidiStreaming}}
@@ -167,10 +170,10 @@ impl super::stub::{{Codec.Name}} for {{Codec.Name}} {
                 &x_goog_request_params,
             )
             .await?;
-        Ok(google_cloud_gax::streaming::ResponseStream::new(
+        Ok(google_cloud_gax::streaming::ResponseStream::from_stream(
             result.into_inner().map(|res| {
-                res.map_err(google_cloud_gax::error::Error::from)
-                    .and_then(|m| m.cnv())
+                res.map_err(gaxi::grpc::from_status::to_gax_error)
+                    .and_then(|m| m.cnv().map_err(google_cloud_gax::error::Error::deser))
             })
         ))
         {{/Codec.ServerSideStreaming}}

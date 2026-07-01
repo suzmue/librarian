@@ -252,8 +252,8 @@ func annotateModel(model *api.API, codec *codec) (*modelAnnotations, error) {
 		DisabledRustdocWarnings: codec.disabledRustdocWarnings,
 		DisabledClippyWarnings:  codec.disabledClippyWarnings,
 		PerServiceFeatures:      codec.perServiceFeatures && len(servicesSubset) > 0,
-		IncludeStreamingMethods:   codec.includeStreamingMethods,
-		IncludeGrpcOnlyMethods:    codec.includeGrpcOnlyMethods,
+		IncludeStreamingMethods: codec.includeStreamingMethods,
+		IncludeGrpcOnlyMethods:  codec.includeGrpcOnlyMethods,
 		ExtraModules:            codec.extraModules,
 		Incomplete: slices.ContainsFunc(model.Services, func(s *api.Service) bool {
 			return slices.ContainsFunc(s.Methods, func(m *api.Method) bool { return !codec.generateMethod(m) })

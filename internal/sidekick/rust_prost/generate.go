@@ -53,8 +53,7 @@ func Generate(ctx context.Context, model *api.API, outdir string, template strin
 	if err != nil {
 		return fmt.Errorf("cannot create temporary directory for rust+prost output: %w", err)
 	}
-	// defer os.RemoveAll(tmpDir)
-	fmt.Printf("DEBUG: tmpDir = %s\n", tmpDir)
+	defer os.RemoveAll(tmpDir)
 	if err := language.GenerateFromModel(tmpDir, model, provider, generatedFiles); err != nil {
 		return err
 	}

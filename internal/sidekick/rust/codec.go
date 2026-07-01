@@ -205,28 +205,41 @@ func newCodec(specificationFormat string, options map[string]string) (*codec, er
 		foundProstTypes := false
 		foundHttp := false
 		for _, p := range codec.extraPackages {
-			if p.name == "futures-core" {
+			switch p.name {
+			case "futures-core":
 				p.used = true
 				foundFutures = true
-			} else if p.name == "futures-util" {
+			case "futures-util":
 				p.used = true
 				foundFuturesUtil = true
-			} else if p.name == "prost" {
+			case "prost":
 				p.used = true
 				foundProst = true
-			} else if p.name == "prost-types" {
+			case "prost-types":
 				p.used = true
 				foundProstTypes = true
-			} else if p.name == "http" {
+			case "http":
 				p.used = true
 				foundHttp = true
-			} else if p.name == "gaxi" {
+			case "google-cloud-gax":
+				hasUnstableStream := false
+				for _, f := range p.features {
+					if f == "unstable-stream" {
+						hasUnstableStream = true
+					}
+				}
+				if !hasUnstableStream {
+					p.features = append(p.features, "unstable-stream")
+				}
+			case "gaxi":
+				p.used = true
 				hasGrpcClient := false
 				hasGrpcServerStreaming := false
 				for _, f := range p.features {
-					if f == "_internal-grpc-client" {
+					switch f {
+					case "_internal-grpc-client":
 						hasGrpcClient = true
-					} else if f == "_internal-grpc-server-streaming" {
+					case "_internal-grpc-server-streaming":
 						hasGrpcServerStreaming = true
 					}
 				}

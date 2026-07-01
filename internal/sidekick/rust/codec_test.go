@@ -229,7 +229,19 @@ func TestParseOptions(t *testing.T) {
 						used: true,
 					},
 					{
+						name: "futures-util",
+						used: true,
+					},
+					{
+						name: "http",
+						used: true,
+					},
+					{
 						name: "prost",
+						used: true,
+					},
+					{
+						name: "prost-types",
 						used: true,
 					},
 				}
@@ -255,7 +267,19 @@ func TestParseOptions(t *testing.T) {
 						used: true,
 					},
 					{
+						name: "futures-util",
+						used: true,
+					},
+					{
+						name: "http",
+						used: true,
+					},
+					{
 						name: "prost",
+						used: true,
+					},
+					{
+						name: "prost-types",
 						used: true,
 					},
 				}

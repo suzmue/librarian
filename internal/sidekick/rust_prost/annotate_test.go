@@ -50,6 +50,10 @@ func TestModelAnnotations(t *testing.T) {
 			"../../testdata/googleapis/google/type/f1.proto",
 			"../../testdata/googleapis/google/type/f2.proto",
 		},
+		ExternPaths: []ExternPath{
+			{ProtoPath: ".google.rpc", RustPath: "::google_cloud_rpc::prost"},
+			{ProtoPath: ".google.longrunning", RustPath: "::google_cloud_longrunning::prost"},
+		},
 	}
 	if diff := cmp.Diff(want, model.Codec, cmpopts.IgnoreFields(modelAnnotations{}, "BoilerPlate")); diff != "" {
 		t.Errorf("mismatch (-want +got):\n%s", diff)

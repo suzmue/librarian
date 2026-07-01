@@ -26,6 +26,7 @@ import (
 	"github.com/googleapis/librarian/internal/sidekick/rust"
 )
 
+// ExternPath maps a protobuf package path to a Rust path for external dependencies.
 type ExternPath struct {
 	ProtoPath string
 	RustPath  string
