@@ -753,3 +753,99 @@ func TestCreateRepoMetadata(t *testing.T) {
 		})
 	}
 }
+
+func TestGenerate_Streaming(t *testing.T) {
+	testhelper.RequireCommand(t, "protoc")
+	testhelper.RequireCommand(t, "rustfmt")
+	testhelper.RequireCommand(t, "taplo")
+	testhelper.RequireCommand(t, "cargo")
+
+	googleapisDir, err := filepath.Abs("../../testdata/googleapis")
+	if err != nil {
+		t.Fatal(err)
+	}
+	workspaceDir, err := filepath.Abs("testdata")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Cleanup(func() {
+		os.RemoveAll(filepath.Join(workspaceDir, "target"))
+		os.Remove(filepath.Join(workspaceDir, "Cargo.lock"))
+	})
+
+	// Mock validate to speed up the test.
+	oldValidate := validate
+	validate = func(ctx context.Context, outputDir string) error { return nil }
+	t.Cleanup(func() { validate = oldValidate })
+
+	// Change to testdata directory so cargo fmt can find Cargo.toml
+	t.Chdir(workspaceDir)
+
+	libName := "google-cloud-secretmanager-v1"
+	outDir := filepath.Join(workspaceDir, libName)
+
+	if err := os.RemoveAll(outDir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(outDir) })
+
+	library := &config.Library{
+		Name:          libName,
+		Version:       "0.1.0",
+		Output:        outDir,
+		CopyrightYear: "2025",
+		APIs: []*config.API{
+			{
+				Path: "google/cloud/secretmanager/v1",
+			},
+		},
+		Rust: &config.RustCrate{
+			RustDefault: config.RustDefault{
+				PackageDependencies: []*config.RustPackageDependency{
+					{Name: "wkt", Package: "google-cloud-wkt", Source: "google.protobuf"},
+					{Name: "iam_v1", Package: "google-cloud-iam-v1", Source: "google.iam.v1"},
+					{Name: "location", Package: "google-cloud-location", Source: "google.cloud.location"},
+					{Name: "google-cloud-api", Package: "google-cloud-api", Source: "google.api"},
+					{Name: "google-cloud-type", Package: "google-cloud-type", Source: "google.type"},
+				},
+			},
+			IncludeStreamingMethods: true,
+		},
+	}
+	sources := &sources.Sources{
+		Googleapis: googleapisDir,
+	}
+	if err := Generate(t.Context(), &config.Config{Language: "rust", Repo: "google-cloud-rust"}, library, sources); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, check := range []struct {
+		path string
+		want string
+	}{
+		{filepath.Join(outDir, "Cargo.toml"), "name"},
+		{filepath.Join(outDir, "Cargo.toml"), libName},
+		{filepath.Join(outDir, "src", "lib.rs"), "pub mod model;"},
+		{filepath.Join(outDir, "src", "lib.rs"), "pub mod client;"},
+		{filepath.Join(outDir, "src", "lib.rs"), "pub mod prost;"},
+		{filepath.Join(outDir, "src", "lib.rs"), "pub mod convert;"},
+		{filepath.Join(outDir, "src", "convert.rs"), "use crate::prost::*;"},
+		// We expect the generated prost file to exist.
+		// The package name is google.cloud.secretmanager.v1, so the file name should be google.cloud.secretmanager.v1.rs.
+		{filepath.Join(outDir, "src", "prost", "google.cloud.secretmanager.v1.rs"), "pub struct StreamSecretsRequest"},
+	} {
+		t.Run(check.path, func(t *testing.T) {
+			if _, err := os.Stat(check.path); err != nil {
+				t.Fatal(err)
+			}
+			got, err := os.ReadFile(check.path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(got), check.want) {
+				t.Errorf("%q missing expected string: %q", check.path, check.want)
+			}
+		})
+	}
+}

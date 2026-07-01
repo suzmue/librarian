@@ -80,10 +80,15 @@ func buildRS(ctx context.Context, rootName, tmpDir, outDir string) error {
 	if err != nil {
 		return err
 	}
+	protocPath, err := exec.LookPath("protoc")
+	if err != nil {
+		return fmt.Errorf("failed to find protoc: %w", err)
+	}
 	cmd := exec.CommandContext(ctx, command.Cargo, "build", "--features", "_generate-protos")
 	cmd.Dir = tmpDir
 	cmd.Env = append(os.Environ(), fmt.Sprintf("SOURCE_ROOT=%s", absRoot))
 	cmd.Env = append(cmd.Env, fmt.Sprintf("DEST=%s", absOutDir))
+	cmd.Env = append(cmd.Env, fmt.Sprintf("PROTOC=%s", protocPath))
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("%v: %v\n%s", cmd, err, output)
 	}

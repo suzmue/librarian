@@ -114,8 +114,12 @@ func buildCodec(library *config.Library, releaseLevel string) map[string]string 
 	if library.SkipRelease {
 		codec["not-for-publication"] = "true"
 	}
-	if extraModules := extraModulesFromKeep(library.Keep); len(extraModules) > 0 {
-		codec["extra-modules"] = strings.Join(extraModules, ",")
+	extra := extraModulesFromKeep(library.Keep)
+	if library.Rust != nil && library.Rust.IncludeStreamingMethods {
+		extra = append(extra, "prost", "convert")
+	}
+	if len(extra) > 0 {
+		codec["extra-modules"] = strings.Join(extra, ",")
 	}
 	if library.Rust == nil {
 		return codec

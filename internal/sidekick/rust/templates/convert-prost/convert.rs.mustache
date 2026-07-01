@@ -22,9 +22,10 @@ limitations under the License.
   This file is used to bootstrap the `google-cloud-gax-internal` crate. In all
   other crates `gaxi` is well-defined and refers to said crate.
 }}
-
 use crate as gaxi;
 {{/Codec.IsGaxiCrate}}
+#[allow(unused_imports)]
+use crate::prost::*;
 {{#Enums}}
 {{> enum}}
 {{/Enums}}

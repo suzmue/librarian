@@ -55,6 +55,13 @@ service SecretManagerService {
     };
     option (google.api.method_signature) = "name";
   }
+
+  // Streaming RPC for testing.
+  rpc StreamSecrets(StreamSecretsRequest) returns (stream Secret) {
+    option (google.api.http) = {
+      get: "/v1/{parent=projects/*}/secrets:stream"
+    };
+  }
 }
 
 // Request message for
@@ -69,4 +76,9 @@ message GetSecretRequest {
       type: "secretmanager.googleapis.com/Secret"
     }
   ];
+}
+
+// Request message for StreamSecrets.
+message StreamSecretsRequest {
+  string parent = 1;
 }
