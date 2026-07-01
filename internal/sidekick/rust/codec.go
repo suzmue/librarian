@@ -199,17 +199,26 @@ func newCodec(specificationFormat string, options map[string]string) (*codec, er
 		}
 	}
 	if codec.includeStreamingMethods {
-		found := false
+		foundFutures := false
+		foundProst := false
 		for _, p := range codec.extraPackages {
 			if p.name == "futures-core" {
 				p.used = true
-				found = true
-				break
+				foundFutures = true
+			} else if p.name == "prost" {
+				p.used = true
+				foundProst = true
 			}
 		}
-		if !found {
+		if !foundFutures {
 			codec.extraPackages = append(codec.extraPackages, &packagez{
 				name: "futures-core",
+				used: true,
+			})
+		}
+		if !foundProst {
+			codec.extraPackages = append(codec.extraPackages, &packagez{
+				name: "prost",
 				used: true,
 			})
 		}

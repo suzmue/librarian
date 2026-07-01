@@ -228,6 +228,10 @@ func TestParseOptions(t *testing.T) {
 						name: "futures-core",
 						used: true,
 					},
+					{
+						name: "prost",
+						used: true,
+					},
 				}
 			},
 		},

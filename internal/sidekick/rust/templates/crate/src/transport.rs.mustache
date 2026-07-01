@@ -83,7 +83,7 @@ impl super::stub::{{Codec.Name}} for {{Codec.Name}} {
         {{^Codec.HasBindings}}
         let _ = req;
         let _ = options;
-        Err(google_cloud_gax::error::Error::other("No path bindings matching this API exist").into())
+        Err(google_cloud_gax::error::Error::binding("No path bindings matching this API exist").into())
         {{/Codec.HasBindings}}
         {{#Codec.HasBindings}}
         use google_cloud_gax::error::binding::BindingError;

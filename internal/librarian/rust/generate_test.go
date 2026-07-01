@@ -1025,4 +1025,3 @@ func assertDirParity(t *testing.T, expectedDir, actualDir string, ignoreFiles []
 		t.Fatal(err)
 	}
 }
-
