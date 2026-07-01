@@ -35,6 +35,9 @@ use crate::Error;
 #[derive(Clone)]
 pub struct {{Codec.Name}} {
     inner: gaxi::http::ReqwestClient,
+    {{#Codec.IncludeStreamingMethods}}
+    grpc_client: gaxi::grpc::Client,
+    {{/Codec.IncludeStreamingMethods}}
 }
 
 {{#Codec.PerServiceFeatures}}
@@ -44,6 +47,9 @@ impl std::fmt::Debug for {{Codec.Name}} {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         f.debug_struct("{{Codec.Name}}")
             .field("inner", &self.inner)
+            {{#Codec.IncludeStreamingMethods}}
+            .field("grpc_client", &self.grpc_client)
+            {{/Codec.IncludeStreamingMethods}}
             .finish()
     }
 }
@@ -55,17 +61,37 @@ impl {{Codec.Name}} {
     pub async fn new(config: gaxi::options::ClientConfig) -> crate::ClientBuilderResult<Self> {
         {{#Codec.DetailedTracingAttributes}}
         let tracing_is_enabled = gaxi::options::tracing_enabled(&config);
-        let inner = gaxi::http::ReqwestClient::new(config, crate::DEFAULT_HOST).await?;
+        let inner = gaxi::http::ReqwestClient::new(config.clone(), crate::DEFAULT_HOST).await?;
         let inner = if tracing_is_enabled {
             inner.with_instrumentation(&super::tracing::info::INSTRUMENTATION_CLIENT_INFO)
         } else {
             inner
         };
-        Ok(Self { inner })
+        {{#Codec.IncludeStreamingMethods}}
+        let grpc_client = if tracing_is_enabled {
+            gaxi::grpc::Client::new_with_instrumentation(config, crate::DEFAULT_HOST, &super::tracing::info::INSTRUMENTATION_CLIENT_INFO).await?
+        } else {
+            gaxi::grpc::Client::new(config, crate::DEFAULT_HOST).await?
+        };
+        {{/Codec.IncludeStreamingMethods}}
+        Ok(Self {
+            inner,
+            {{#Codec.IncludeStreamingMethods}}
+            grpc_client,
+            {{/Codec.IncludeStreamingMethods}}
+        })
         {{/Codec.DetailedTracingAttributes}}
         {{^Codec.DetailedTracingAttributes}}
-        let inner = gaxi::http::ReqwestClient::new(config, crate::DEFAULT_HOST).await?;
-        Ok(Self { inner })
+        let inner = gaxi::http::ReqwestClient::new(config.clone(), crate::DEFAULT_HOST).await?;
+        {{#Codec.IncludeStreamingMethods}}
+        let grpc_client = gaxi::grpc::Client::new(config, crate::DEFAULT_HOST).await?;
+        {{/Codec.IncludeStreamingMethods}}
+        Ok(Self {
+            inner,
+            {{#Codec.IncludeStreamingMethods}}
+            grpc_client,
+            {{/Codec.IncludeStreamingMethods}}
+        })
         {{/Codec.DetailedTracingAttributes}}
     }
 }
@@ -75,6 +101,91 @@ impl {{Codec.Name}} {
 {{/Codec.PerServiceFeatures}}
 impl super::stub::{{Codec.Name}} for {{Codec.Name}} {
     {{#Codec.Methods}}
+    {{#Codec.IsStreaming}}
+    async fn {{Codec.Name}}(
+        &self,
+        {{#Codec.ClientSideStreaming}}
+        req: google_cloud_gax::streaming::RequestStream<{{InputType.Codec.QualifiedName}}>,
+        {{/Codec.ClientSideStreaming}}
+        {{^Codec.ClientSideStreaming}}
+        req: {{InputType.Codec.QualifiedName}},
+        {{/Codec.ClientSideStreaming}}
+        options: crate::RequestOptions,
+    ) -> Result<
+        {{#Codec.ServerSideStreaming}}
+        google_cloud_gax::streaming::ResponseStream<{{OutputType.Codec.QualifiedName}}>,
+        {{/Codec.ServerSideStreaming}}
+        {{^Codec.ServerSideStreaming}}
+        crate::Response<{{Codec.ReturnType}}>,
+        {{/Codec.ServerSideStreaming}}
+    > {
+        use google_cloud_gax::grpc::tonic::{GrpcMethod, Extensions};
+        use google_cloud_gax::prost::{ConvertError, FromProto, ToProto};
+        use futures::StreamExt as _;
+
+        let options = google_cloud_gax::options::internal::set_default_idempotency(
+            options,
+            true,
+        );
+        let extensions = {
+            let mut e = Extensions::new();
+            e.insert(GrpcMethod::new("{{SourceService.Package}}.{{SourceService.Name}}", "{{Name}}"));
+            e
+        };
+        let path = http::uri::PathAndQuery::from_static(
+            "/{{SourceService.Package}}.{{SourceService.Name}}/{{Name}}"
+        );
+        let x_goog_request_params = "";
+
+        {{#Codec.BidiStreaming}}
+        let result = self.grpc_client
+            .bidi_stream(
+                extensions,
+                path,
+                req,
+                options,
+                &crate::info::X_GOOG_API_CLIENT_HEADER,
+                &x_goog_request_params,
+            )
+            .await?;
+        Ok(google_cloud_gax::streaming::ResponseStream::new(
+            result.into_inner().map(|res| {
+                res.map_err(google_cloud_gax::error::Error::from)
+                    .and_then(|m| m.cnv())
+            })
+        ))
+        {{/Codec.BidiStreaming}}
+        {{^Codec.BidiStreaming}}
+        {{#Codec.ServerSideStreaming}}
+        let result = self.grpc_client
+            .server_streaming(
+                extensions,
+                path,
+                req.to_proto().map_err(Error::deser)?,
+                options,
+                &crate::info::X_GOOG_API_CLIENT_HEADER,
+                &x_goog_request_params,
+            )
+            .await?;
+        Ok(google_cloud_gax::streaming::ResponseStream::new(
+            result.into_inner().map(|res| {
+                res.map_err(google_cloud_gax::error::Error::from)
+                    .and_then(|m| m.cnv())
+            })
+        ))
+        {{/Codec.ServerSideStreaming}}
+        {{#Codec.ClientSideStreaming}}
+        let _ = req;
+        let _ = extensions;
+        let _ = path;
+        let _ = options;
+        let _ = x_goog_request_params;
+        todo!("client-side only streaming is not supported yet");
+        {{/Codec.ClientSideStreaming}}
+        {{/Codec.BidiStreaming}}
+    }
+    {{/Codec.IsStreaming}}
+    {{^Codec.IsStreaming}}
     async fn {{Codec.Name}}(
         &self,
         req: {{InputType.Codec.QualifiedName}},
@@ -234,7 +345,7 @@ impl super::stub::{{Codec.Name}} for {{Codec.Name}} {
         {{/ReturnsEmpty}}
         {{/Codec.HasBindings}}
     }
-
+    {{/Codec.IsStreaming}}
     {{/Codec.Methods}}
     {{#Codec.HasLROs}}
     fn get_polling_error_policy(

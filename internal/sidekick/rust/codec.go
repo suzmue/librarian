@@ -208,6 +208,23 @@ func newCodec(specificationFormat string, options map[string]string) (*codec, er
 			} else if p.name == "prost" {
 				p.used = true
 				foundProst = true
+			} else if p.name == "gaxi" {
+				p.used = true
+				hasGrpcClient := false
+				hasGrpcServerStreaming := false
+				for _, f := range p.features {
+					if f == "_internal-grpc-client" {
+						hasGrpcClient = true
+					} else if f == "_internal-grpc-server-streaming" {
+						hasGrpcServerStreaming = true
+					}
+				}
+				if !hasGrpcClient {
+					p.features = append(p.features, "_internal-grpc-client")
+				}
+				if !hasGrpcServerStreaming {
+					p.features = append(p.features, "_internal-grpc-server-streaming")
+				}
 			}
 		}
 		if !foundFutures {

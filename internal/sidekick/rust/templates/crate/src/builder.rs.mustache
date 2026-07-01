@@ -126,11 +126,13 @@ pub mod {{Codec.ModuleName}} {
             )
         }
 
+        {{^Codec.ClientSideStreaming}}
         /// Sets the full request, replacing any prior values.
         pub fn with_request<V: Into<{{InputType.Codec.QualifiedName}}>>(mut self, v: V) -> Self {
             self.0.request = v.into();
             self
         }
+        {{/Codec.ClientSideStreaming}}
 
         /// Sets all the options, replacing any prior values.
         pub fn with_options<V: Into<crate::RequestOptions>>(mut self, v: V) -> Self {
@@ -146,21 +148,54 @@ pub mod {{Codec.ModuleName}} {
         /// This starts, but does not poll, a longrunning operation. More information
         /// on [{{Method.Codec.Name}}][crate::client::{{Method.Codec.ServiceNameToPascal}}::{{Method.Codec.Name}}].
         {{/OperationInfo}}
-        pub async fn send(self) -> Result<{{Codec.ReturnType}}> {
-            {{!
-                In rare cases `self.0.stub.foo` is ambiguous: we are calling
-                via `Arc<dyn T>` which implements `T` but also implements other
-                traits (e.g. `std::clone::Clone`) making the call ambiguous.
-                Using `*self.0.stub` makes the call not-ambiguous.
-            }}
+        {{#Codec.ClientSideStreaming}}
+        pub async fn send(
+            self,
+            req: google_cloud_gax::streaming::RequestStream<{{InputType.Codec.QualifiedName}}>,
+        ) -> Result<
+            {{#Codec.ServerSideStreaming}}
+            google_cloud_gax::streaming::ResponseStream<{{OutputType.Codec.QualifiedName}}>
+            {{/Codec.ServerSideStreaming}}
+            {{^Codec.ServerSideStreaming}}
+            {{Codec.ReturnType}}
+            {{/Codec.ServerSideStreaming}}
+        > {
+            {{#Codec.ServerSideStreaming}}
+            (*self.0.stub).{{Codec.Name}}(req, self.0.options).await
+            {{/Codec.ServerSideStreaming}}
+            {{^Codec.ServerSideStreaming}}
+            (*self.0.stub).{{Codec.Name}}(req, self.0.options).await.map(crate::Response::into_body)
+            {{/Codec.ServerSideStreaming}}
+        }
+        {{/Codec.ClientSideStreaming}}
+        {{^Codec.ClientSideStreaming}}
+        pub async fn send(self) -> Result<
+            {{#Codec.ServerSideStreaming}}
+            google_cloud_gax::streaming::ResponseStream<{{OutputType.Codec.QualifiedName}}>
+            {{/Codec.ServerSideStreaming}}
+            {{^Codec.ServerSideStreaming}}
+            {{Codec.ReturnType}}
+            {{/Codec.ServerSideStreaming}}
+        > {
             {{#HasAutoPopulatedFields}}
             let req = Self::auto_populate(self.0.request, false);
+            {{#Codec.ServerSideStreaming}}
+            (*self.0.stub).{{Codec.Name}}(req, self.0.options).await
+            {{/Codec.ServerSideStreaming}}
+            {{^Codec.ServerSideStreaming}}
             (*self.0.stub).{{Codec.Name}}(req, self.0.options).await.map(crate::Response::into_body)
+            {{/Codec.ServerSideStreaming}}
             {{/HasAutoPopulatedFields}}
             {{^HasAutoPopulatedFields}}
+            {{#Codec.ServerSideStreaming}}
+            (*self.0.stub).{{Codec.Name}}(self.0.request, self.0.options).await
+            {{/Codec.ServerSideStreaming}}
+            {{^Codec.ServerSideStreaming}}
             (*self.0.stub).{{Codec.Name}}(self.0.request, self.0.options).await.map(crate::Response::into_body)
+            {{/Codec.ServerSideStreaming}}
             {{/HasAutoPopulatedFields}}
         }
+        {{/Codec.ClientSideStreaming}}
         {{#Pagination}}
 
         /// Streams each page in the collection.
@@ -405,6 +440,7 @@ pub mod {{Codec.ModuleName}} {
             req
         }
         {{/HasAutoPopulatedFields}}
+        {{^Codec.ClientSideStreaming}}
         {{#InputType.Codec.BasicFields}}
 
         /// Sets the value of [{{Codec.FieldName}}][{{Codec.FQMessageName}}::{{Codec.SetterName}}].
@@ -553,6 +589,7 @@ pub mod {{Codec.ModuleName}} {
         {{/Map}}
         {{/Fields}}
         {{/InputType.OneOfs}}
+        {{/Codec.ClientSideStreaming}}
     }
 
     #[doc(hidden)]

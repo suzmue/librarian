@@ -55,9 +55,23 @@ pub trait {{Codec.Name}}: std::fmt::Debug + Send + Sync {
     /// Implements [super::client::{{Codec.ServiceNameToPascal}}::{{Codec.Name}}].
     fn {{Codec.Name}}(
         &self,
+        {{#Codec.ClientSideStreaming}}
+        _req: google_cloud_gax::streaming::RequestStream<{{InputType.Codec.QualifiedName}}>,
+        {{/Codec.ClientSideStreaming}}
+        {{^Codec.ClientSideStreaming}}
         _req: {{InputType.Codec.QualifiedName}},
+        {{/Codec.ClientSideStreaming}}
         _options: crate::RequestOptions,
-    ) -> impl std::future::Future<Output = crate::Result<crate::Response<{{Codec.ReturnType}}>>> + Send {
+    ) -> impl std::future::Future<
+        Output = crate::Result<
+            {{#Codec.ServerSideStreaming}}
+            google_cloud_gax::streaming::ResponseStream<{{OutputType.Codec.QualifiedName}}>,
+            {{/Codec.ServerSideStreaming}}
+            {{^Codec.ServerSideStreaming}}
+            crate::Response<{{Codec.ReturnType}}>,
+            {{/Codec.ServerSideStreaming}}
+        >,
+    > + Send {
         gaxi::unimplemented::unimplemented_stub()
     }
     {{/Codec.Methods}}

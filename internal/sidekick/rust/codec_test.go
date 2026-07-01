@@ -238,6 +238,33 @@ func TestParseOptions(t *testing.T) {
 		{
 			Format: libconfig.SpecProtobuf,
 			Options: map[string]string{
+				"include-streaming-methods": "true",
+				"package:gaxi":              "package=google-cloud-gax-internal,source=google-cloud-gax-internal,feature=some-feature",
+			},
+			Update: func(c *codec) {
+				c.includeStreamingMethods = true
+				c.extraPackages = []*packagez{
+					{
+						name:        "gaxi",
+						packageName: "google-cloud-gax-internal",
+						features:    []string{"some-feature", "_internal-grpc-client", "_internal-grpc-server-streaming"},
+						used:        true,
+					},
+					{
+						name: "futures-core",
+						used: true,
+					},
+					{
+						name: "prost",
+						used: true,
+					},
+				}
+				c.packageMapping["google-cloud-gax-internal"] = c.extraPackages[0]
+			},
+		},
+		{
+			Format: libconfig.SpecProtobuf,
+			Options: map[string]string{
 				"per-service-features": "true",
 			},
 			Update: func(c *codec) {

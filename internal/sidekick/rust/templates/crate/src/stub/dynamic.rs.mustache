@@ -28,9 +28,21 @@ pub trait {{Codec.Name}}: std::fmt::Debug + Send + Sync {
     {{#Codec.Methods}}
     async fn {{Codec.Name}}(
         &self,
+        {{#Codec.ClientSideStreaming}}
+        req: google_cloud_gax::streaming::RequestStream<{{InputType.Codec.QualifiedName}}>,
+        {{/Codec.ClientSideStreaming}}
+        {{^Codec.ClientSideStreaming}}
         req: {{InputType.Codec.QualifiedName}},
+        {{/Codec.ClientSideStreaming}}
         options: crate::RequestOptions,
-    ) -> crate::Result<crate::Response<{{Codec.ReturnType}}>>;
+    ) -> crate::Result<
+        {{#Codec.ServerSideStreaming}}
+        google_cloud_gax::streaming::ResponseStream<{{OutputType.Codec.QualifiedName}}>,
+        {{/Codec.ServerSideStreaming}}
+        {{^Codec.ServerSideStreaming}}
+        crate::Response<{{Codec.ReturnType}}>,
+        {{/Codec.ServerSideStreaming}}
+    >;
 
     {{/Codec.Methods}}
     {{#Codec.HasLROs}}
@@ -64,9 +76,21 @@ impl<T: super::{{Codec.Name}}> {{Codec.Name}} for T {
     /// Forwards the call to the implementation provided by `T`.
     async fn {{Codec.Name}}(
         &self,
+        {{#Codec.ClientSideStreaming}}
+        req: google_cloud_gax::streaming::RequestStream<{{InputType.Codec.QualifiedName}}>,
+        {{/Codec.ClientSideStreaming}}
+        {{^Codec.ClientSideStreaming}}
         req: {{InputType.Codec.QualifiedName}},
+        {{/Codec.ClientSideStreaming}}
         options: crate::RequestOptions,
-    ) -> crate::Result<crate::Response<{{Codec.ReturnType}}>> {
+    ) -> crate::Result<
+        {{#Codec.ServerSideStreaming}}
+        google_cloud_gax::streaming::ResponseStream<{{OutputType.Codec.QualifiedName}}>,
+        {{/Codec.ServerSideStreaming}}
+        {{^Codec.ServerSideStreaming}}
+        crate::Response<{{Codec.ReturnType}}>,
+        {{/Codec.ServerSideStreaming}}
+    > {
         T::{{Codec.Name}}(self, req, options).await
     }
 
