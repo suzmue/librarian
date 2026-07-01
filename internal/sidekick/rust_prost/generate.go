@@ -49,11 +49,12 @@ func Generate(ctx context.Context, model *api.API, outdir string, template strin
 	codec.annotateModel(model, cfg)
 	provider := templatesProvider()
 	generatedFiles := language.WalkTemplatesDir(templates, "templates/"+template)
-	tmpDir, err := os.MkdirTemp("", "rust-prost-*")
+	tmpDir, err := os.MkdirTemp(".", "tmp-rust-prost-*")
 	if err != nil {
 		return fmt.Errorf("cannot create temporary directory for rust+prost output: %w", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	// defer os.RemoveAll(tmpDir)
+	fmt.Printf("DEBUG: tmpDir = %s\n", tmpDir)
 	if err := language.GenerateFromModel(tmpDir, model, provider, generatedFiles); err != nil {
 		return err
 	}
@@ -86,10 +87,13 @@ func buildRS(ctx context.Context, rootName, tmpDir, outDir string) error {
 	}
 	cmd := exec.CommandContext(ctx, command.Cargo, "build", "--features", "_generate-protos")
 	cmd.Dir = tmpDir
+	fmt.Printf("DEBUG: SOURCE_ROOT = %s, DEST = %s\n", absRoot, absOutDir)
 	cmd.Env = append(os.Environ(), fmt.Sprintf("SOURCE_ROOT=%s", absRoot))
 	cmd.Env = append(cmd.Env, fmt.Sprintf("DEST=%s", absOutDir))
 	cmd.Env = append(cmd.Env, fmt.Sprintf("PROTOC=%s", protocPath))
-	if output, err := cmd.CombinedOutput(); err != nil {
+	output, err := cmd.CombinedOutput()
+	fmt.Printf("DEBUG buildRS output:\n%s\n", output)
+	if err != nil {
 		buildRsPath := filepath.Join(tmpDir, "build.rs")
 		buildRsContent, readErr := os.ReadFile(buildRsPath)
 		if readErr != nil {
