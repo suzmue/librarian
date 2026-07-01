@@ -163,6 +163,9 @@ func generateVeneer(ctx context.Context, library *config.Library, sources *sourc
 			return fmt.Errorf("CreateModel %q: %w", module.Output, err)
 		}
 		if module.Template == "prost" || module.Template == "tonic" {
+			if err := os.MkdirAll(module.Output, 0755); err != nil {
+				return fmt.Errorf("failed to create module output directory %q: %w", module.Output, err)
+			}
 			err = rust_prost.Generate(ctx, model, module.Output, module.Template, modelConfig)
 		} else {
 			err = sidekickrust.Generate(ctx, model, module.Output, modelConfig)
