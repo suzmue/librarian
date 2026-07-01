@@ -209,7 +209,6 @@ func newCodec(specificationFormat string, options map[string]string) (*codec, er
 				p.used = true
 				foundProst = true
 			} else if p.name == "gaxi" {
-				p.used = true
 				hasGrpcClient := false
 				hasGrpcServerStreaming := false
 				for _, f := range p.features {
