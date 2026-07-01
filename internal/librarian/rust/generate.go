@@ -180,11 +180,7 @@ func generateVeneer(ctx context.Context, library *config.Library, sources *sourc
 // Keep returns the list of files to preserve when cleaning the output directory.
 func Keep(library *config.Library) ([]string, error) {
 	if !IsMixedLibrary(library) {
-		keep := append([]string(nil), library.Keep...)
-		if library.Rust != nil && library.Rust.IncludeStreamingMethods {
-			keep = append(keep, "src/prost.rs", "src/convert.rs", "src/prost")
-		}
-		return keep, nil
+		return library.Keep, nil
 	}
 	// For veneers, keep all files outside module output directories. We walk
 	// library.Output and keep files not under any module.Output.
