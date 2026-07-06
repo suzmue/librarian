@@ -792,7 +792,7 @@ func TestGenerate_Streaming(t *testing.T) {
 	if err := os.RemoveAll(outDir); err != nil {
 		t.Fatal(err)
 	}
-	// t.Cleanup(func() { os.RemoveAll(outDir) })
+	t.Cleanup(func() { os.RemoveAll(outDir) })
 
 	library := &config.Library{
 		Name:          libName,
@@ -834,7 +834,7 @@ func TestGenerate_Streaming(t *testing.T) {
 		{filepath.Join(outDir, "src", "lib.rs"), "pub mod client;"},
 		{filepath.Join(outDir, "src", "lib.rs"), "pub(crate) mod prost;"},
 		{filepath.Join(outDir, "src", "lib.rs"), "pub(crate) mod convert;"},
-		{filepath.Join(outDir, "src", "convert.rs"), "use crate::prost::*;"},
+		{filepath.Join(outDir, "src", "convert.rs"), "impl gaxi::prost::ToProto<"},
 		// We expect the generated prost file to exist.
 		// The package name is google.cloud.secretmanager.v1, so the file name should be google.cloud.secretmanager.v1.rs.
 		{filepath.Join(outDir, "src", "prost", "google.cloud.secretmanager.v1.rs"), "pub struct StreamSecretsRequest"},

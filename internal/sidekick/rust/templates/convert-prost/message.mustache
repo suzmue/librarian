@@ -24,9 +24,9 @@ limitations under the License.
 {{/OneOfs}}
 {{^Codec.SkipConversion}}
 
-impl ToProto<{{Codec.RawTypeName}}> for {{Codec.QualifiedName}} {
+impl gaxi::prost::ToProto<{{Codec.RawTypeName}}> for {{Codec.QualifiedName}} {
     type Output = {{Codec.RawTypeName}};
-    fn to_proto(self) -> std::result::Result<{{Codec.RawTypeName}}, ConvertError> {
+    fn to_proto(self) -> std::result::Result<{{Codec.RawTypeName}}, gaxi::prost::ConvertError> {
         Ok(Self::Output {
             {{#Codec.BasicFields}}
             {{#Singular}}
@@ -52,7 +52,7 @@ impl ToProto<{{Codec.RawTypeName}}> for {{Codec.QualifiedName}} {
             {{Codec.FieldName}}: self.{{Codec.FieldName}}
                 .into_iter()
                 .map(|(k, v)| {
-                    pair_transpose(k.to_proto(), v.to_proto())
+                    gaxi::prost::pair_transpose(k.to_proto(), v.to_proto())
                 }).collect::<std::result::Result<std::collections::HashMap<_, _>, _>>()?,
             {{/Map}}
             {{/Codec.BasicFields}}
@@ -63,8 +63,8 @@ impl ToProto<{{Codec.RawTypeName}}> for {{Codec.QualifiedName}} {
     }
 }
 
-impl FromProto<{{Codec.QualifiedName}}> for {{Codec.RawTypeName}} {
-    fn cnv(self) -> std::result::Result<{{Codec.QualifiedName}}, ConvertError> {
+impl gaxi::prost::FromProto<{{Codec.QualifiedName}}> for {{Codec.RawTypeName}} {
+    fn cnv(self) -> std::result::Result<{{Codec.QualifiedName}}, gaxi::prost::ConvertError> {
         Ok(
             {{Codec.QualifiedName}}::new()
                 {{#Codec.BasicFields}}
@@ -99,7 +99,7 @@ impl FromProto<{{Codec.QualifiedName}}> for {{Codec.RawTypeName}} {
                 {{^Codec.ValueType.IsEnum}}
                 .set_{{Codec.SetterName}}(self.{{Codec.FieldName}}.into_iter()
                     .map(|(k, v)| {
-                        pair_transpose(k.cnv(), v.cnv())
+                        gaxi::prost::pair_transpose(k.cnv(), v.cnv())
                     }).collect::<std::result::Result<std::collections::HashMap<_, _>, _>>()?)
                 {{/Codec.ValueType.IsEnum}}
                 {{/Map}}
