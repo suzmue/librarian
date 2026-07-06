@@ -72,7 +72,7 @@ edition.workspace  =    true
 		Name:   libName,
 		Output: libDir,
 	}
-	if err := FormatRust(t.Context(), library); err != nil {
+	if err := Format(t.Context(), library); err != nil {
 		t.Fatal(err)
 	}
 

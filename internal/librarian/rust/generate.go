@@ -21,7 +21,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"runtime/debug"
 	"sort"
 	"strings"
 
@@ -133,11 +132,10 @@ func UpdateWorkspace(ctx context.Context) error {
 	return command.Run(ctx, command.Cargo, "update", "--workspace")
 }
 
-// FormatRust formats a generated Rust library. Must be called sequentially;
+// Format formats a generated Rust library. Must be called sequentially;
 // parallel calls cause race conditions as cargo fmt runs cargo metadata,
 // which competes for locks on the workspace Cargo.toml and Cargo.lock.
-func FormatRust(ctx context.Context, library *config.Library) error {
-	debug.PrintStack()
+func Format(ctx context.Context, library *config.Library) error {
 	if err := command.Run(ctx, "taplo", "fmt", filepath.Join(library.Output, "Cargo.toml")); err != nil {
 		return err
 	}

@@ -86,12 +86,10 @@ func buildRS(ctx context.Context, rootName, tmpDir, outDir string) error {
 	}
 	cmd := exec.CommandContext(ctx, command.Cargo, "build", "--features", "_generate-protos")
 	cmd.Dir = tmpDir
-	fmt.Printf("DEBUG: SOURCE_ROOT = %s, DEST = %s\n", absRoot, absOutDir)
 	cmd.Env = append(os.Environ(), fmt.Sprintf("SOURCE_ROOT=%s", absRoot))
 	cmd.Env = append(cmd.Env, fmt.Sprintf("DEST=%s", absOutDir))
 	cmd.Env = append(cmd.Env, fmt.Sprintf("PROTOC=%s", protocPath))
 	output, err := cmd.CombinedOutput()
-	fmt.Printf("DEBUG buildRS output:\n%s\n", output)
 	if err != nil {
 		buildRsPath := filepath.Join(tmpDir, "build.rs")
 		buildRsContent, readErr := os.ReadFile(buildRsPath)
