@@ -499,13 +499,42 @@ func TestGenerateRpcSamples(t *testing.T) {
 	}
 }
 
-func TestGenerateSetterSamples(t *testing.T) {
-	model := serviceAnnotationsModel()
+func TestModelAnnotationsHasBidiStreaming(t *testing.T) {
+	msg := &api.Message{
+		Name:    "Request",
+		ID:      ".test.v1.Request",
+		Package: "test.v1",
+	}
+	service := &api.Service{
+		Name:    "BidiService",
+		ID:      ".test.v1.BidiService",
+		Package: "test.v1",
+		Methods: []*api.Method{
+			{
+				Name:                "Chat",
+				ID:                  ".test.v1.BidiService.Chat",
+				InputTypeID:         msg.ID,
+				OutputTypeID:        msg.ID,
+				InputType:           msg,
+				OutputType:          msg,
+				ClientSideStreaming: true,
+				ServerSideStreaming: true,
+				PathInfo:            &api.PathInfo{},
+			},
+		},
+	}
+	model := api.NewTestAPI([]*api.Message{msg}, []*api.Enum{}, []*api.Service{service})
+	if err := api.CrossReference(model); err != nil {
+		t.Fatal(err)
+	}
 	codec := newTestCodec(t, libconfig.SpecProtobuf, "", map[string]string{
-		"generate-setter-samples": "true",
+		"include-bidi-streaming-methods": "true",
 	})
-	annotateModel(model, codec)
-	if !model.Codec.(*modelAnnotations).GenerateSetterSamples {
-		t.Errorf("GenerateSetterSamples should be true")
+	got, err := annotateModel(model, codec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.HasBidiStreaming {
+		t.Errorf("modelAnnotations.HasBidiStreaming = false, want true")
 	}
 }

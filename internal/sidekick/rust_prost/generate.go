@@ -21,6 +21,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/googleapis/librarian/internal/command"
 	libconfig "github.com/googleapis/librarian/internal/config"
@@ -57,8 +58,20 @@ func Generate(ctx context.Context, model *api.API, outdir string, template strin
 	if err := language.GenerateFromModel(tmpDir, model, provider, generatedFiles); err != nil {
 		return err
 	}
-	rootSource := cfg.Source.Root(codec.RootName)
-	return buildRS(ctx, rootSource, tmpDir, outdir)
+	var rootPaths []string
+	if cfg != nil && cfg.Source != nil {
+		for _, r := range cfg.Source.ActiveRoots {
+			if rootPath := cfg.Source.Root(r); rootPath != "" {
+				rootPaths = append(rootPaths, rootPath)
+			}
+		}
+	}
+	if len(rootPaths) == 0 && cfg != nil && cfg.Source != nil {
+		if rootPath := cfg.Source.Root(codec.RootName); rootPath != "" {
+			rootPaths = append(rootPaths, rootPath)
+		}
+	}
+	return buildRS(ctx, rootPaths, tmpDir, outdir)
 }
 
 func templatesProvider() language.TemplateProvider {
@@ -71,10 +84,14 @@ func templatesProvider() language.TemplateProvider {
 	}
 }
 
-func buildRS(ctx context.Context, rootName, tmpDir, outDir string) error {
-	absRoot, err := filepath.Abs(rootName)
-	if err != nil {
-		return err
+func buildRS(ctx context.Context, rootPaths []string, tmpDir, outDir string) error {
+	var absRoots []string
+	for _, r := range rootPaths {
+		absRoot, err := filepath.Abs(r)
+		if err != nil {
+			return err
+		}
+		absRoots = append(absRoots, absRoot)
 	}
 	absOutDir, err := filepath.Abs(outDir)
 	if err != nil {
@@ -82,7 +99,7 @@ func buildRS(ctx context.Context, rootName, tmpDir, outDir string) error {
 	}
 	cmd := exec.CommandContext(ctx, command.Cargo, "build", "--features", "_generate-protos")
 	cmd.Dir = tmpDir
-	cmd.Env = append(os.Environ(), fmt.Sprintf("SOURCE_ROOT=%s", absRoot))
+	cmd.Env = append(os.Environ(), fmt.Sprintf("SOURCE_ROOT=%s", strings.Join(absRoots, string(os.PathListSeparator))))
 	cmd.Env = append(cmd.Env, fmt.Sprintf("DEST=%s", absOutDir))
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("%v: %v\n%s", cmd, err, output)

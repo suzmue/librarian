@@ -38,6 +38,7 @@ type modelAnnotations struct {
 	RequiredPackages []string
 	ExternPackages   []string
 	HasLROs          bool
+	HasBidiStreaming bool
 	CopyrightYear    string
 	BoilerPlate      []string
 	DefaultHost      string
@@ -236,6 +237,10 @@ func annotateModel(model *api.API, codec *codec) (*modelAnnotations, error) {
 		RequiredPackages: requiredPackages(codec.extraPackages),
 		ExternPackages:   externPackages(codec.extraPackages),
 		HasLROs:          hasLROs,
+		HasBidiStreaming: slices.ContainsFunc(model.Services, func(s *api.Service) bool {
+			ann, ok := s.Codec.(*serviceAnnotations)
+			return ok && ann.HasBidiStreaming
+		}),
 		CopyrightYear:    codec.generationYear,
 		BoilerPlate: append(license.HeaderBulk(),
 			"",
@@ -347,3 +352,5 @@ func packageToModuleName(p string) string {
 	}
 	return strings.Join(components, "::")
 }
+
+

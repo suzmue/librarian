@@ -125,6 +125,12 @@ pub(crate) mod tracing;
 #[doc(hidden)]
 pub(crate) mod transport;
 
+{{#Codec.HasBidiStreaming}}
+#[cfg(google_cloud_unstable_gapic_streaming)]
+#[doc(hidden)]
+pub(crate) mod prost;
+{{/Codec.HasBidiStreaming}}
+
 /// The default host used by the service.
 {{#Codec.PerServiceFeatures}}
 #[cfg(any({{#Codec.Services}}feature = "{{Codec.FeatureName}}",{{/Codec.Services}}))]

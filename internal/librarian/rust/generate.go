@@ -19,11 +19,13 @@ import (
 	"fmt"
 	"io/fs"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/googleapis/librarian/internal/command"
 	"github.com/googleapis/librarian/internal/config"
 	"github.com/googleapis/librarian/internal/serviceconfig"
+	"github.com/googleapis/librarian/internal/sidekick/api"
 	"github.com/googleapis/librarian/internal/sidekick/parser"
 	sidekickrust "github.com/googleapis/librarian/internal/sidekick/rust"
 	"github.com/googleapis/librarian/internal/sidekick/rust_prost"
@@ -82,6 +84,9 @@ func Generate(ctx context.Context, cfg *config.Config, library *config.Library, 
 	if err := sidekickrust.Generate(ctx, model, library.Output, modelConfig); err != nil {
 		return err
 	}
+	if err := generateProstSubmodule(ctx, model, library, library.Output, modelConfig); err != nil {
+		return err
+	}
 	if needsRepoMetadata(model, library) {
 		repoMetadata, err := createRepoMetadata(cfg, library, sources)
 		if err != nil {
@@ -93,6 +98,26 @@ func Generate(ctx context.Context, cfg *config.Config, library *config.Library, 
 	}
 	if !exists {
 		validate(ctx, library.Output)
+	}
+	return nil
+}
+
+func generateProstSubmodule(ctx context.Context, model *api.API, library *config.Library, outdir string, modelConfig *parser.ModelConfig) error {
+	if library.Rust == nil || !library.Rust.IncludeBidiStreamingMethods {
+		return nil
+	}
+	hasBidiStreaming := slices.ContainsFunc(model.Services, func(s *api.Service) bool {
+		return slices.ContainsFunc(s.Methods, func(m *api.Method) bool {
+			return m.ClientSideStreaming && m.ServerSideStreaming
+		})
+	})
+	if !hasBidiStreaming {
+		return nil
+	}
+
+	prostOutDir := filepath.Join(outdir, "src", "prost")
+	if err := rust_prost.Generate(ctx, model, prostOutDir, "prost", modelConfig); err != nil {
+		return fmt.Errorf("generating prost module: %w", err)
 	}
 	return nil
 }

@@ -28,6 +28,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/googleapis/librarian/internal/config"
 	"github.com/googleapis/librarian/internal/repometadata"
+	"github.com/googleapis/librarian/internal/sidekick/api"
+	"github.com/googleapis/librarian/internal/sidekick/parser"
 	"github.com/googleapis/librarian/internal/sources"
 	"github.com/googleapis/librarian/internal/testhelper"
 )
@@ -723,3 +725,90 @@ func TestCreateRepoMetadata(t *testing.T) {
 		})
 	}
 }
+
+func TestGenerateProstSubmodule(t *testing.T) {
+	msg := &api.Message{
+		Name:    "Request",
+		ID:      ".test.v1.Request",
+		Package: "test.v1",
+	}
+	bidiService := &api.Service{
+		Name:    "BidiService",
+		ID:      ".test.v1.BidiService",
+		Package: "test.v1",
+		Methods: []*api.Method{
+			{
+				Name:                "Chat",
+				ID:                  ".test.v1.BidiService.Chat",
+				InputTypeID:         msg.ID,
+				OutputTypeID:        msg.ID,
+				InputType:           msg,
+				OutputType:          msg,
+				ClientSideStreaming: true,
+				ServerSideStreaming: true,
+				PathInfo:            &api.PathInfo{},
+			},
+		},
+	}
+	nonBidiService := &api.Service{
+		Name:    "UnaryService",
+		ID:      ".test.v1.UnaryService",
+		Package: "test.v1",
+		Methods: []*api.Method{
+			{
+				Name:         "Get",
+				ID:           ".test.v1.UnaryService.Get",
+				InputTypeID:  msg.ID,
+				OutputTypeID: msg.ID,
+				InputType:    msg,
+				OutputType:   msg,
+				PathInfo:     &api.PathInfo{},
+			},
+		},
+	}
+
+	bidiModel := api.NewTestAPI([]*api.Message{msg}, []*api.Enum{}, []*api.Service{bidiService})
+	if err := api.CrossReference(bidiModel); err != nil {
+		t.Fatal(err)
+	}
+
+	nonBidiModel := api.NewTestAPI([]*api.Message{msg}, []*api.Enum{}, []*api.Service{nonBidiService})
+	if err := api.CrossReference(nonBidiModel); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("feature disabled does not create prost dir", func(t *testing.T) {
+		outDir := t.TempDir()
+		lib := &config.Library{
+			Rust: &config.RustCrate{
+				IncludeBidiStreamingMethods: false,
+			},
+		}
+		err := generateProstSubmodule(t.Context(), bidiModel, lib, outDir, &parser.ModelConfig{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		prostDir := filepath.Join(outDir, "src", "prost")
+		if _, err := os.Stat(prostDir); !os.IsNotExist(err) {
+			t.Errorf("expected prost dir to not exist, got err: %v", err)
+		}
+	})
+
+	t.Run("model without bidi streaming does not create prost dir", func(t *testing.T) {
+		outDir := t.TempDir()
+		lib := &config.Library{
+			Rust: &config.RustCrate{
+				IncludeBidiStreamingMethods: true,
+			},
+		}
+		err := generateProstSubmodule(t.Context(), nonBidiModel, lib, outDir, &parser.ModelConfig{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		prostDir := filepath.Join(outDir, "src", "prost")
+		if _, err := os.Stat(prostDir); !os.IsNotExist(err) {
+			t.Errorf("expected prost dir to not exist, got err: %v", err)
+		}
+	})
+}
+
