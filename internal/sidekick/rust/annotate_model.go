@@ -229,6 +229,15 @@ func annotateModel(model *api.API, codec *codec) (*modelAnnotations, error) {
 		}
 	}
 
+	hasBidiStreaming := codec.templateOverride == "" && codec.includeBidiStreamingMethods && slices.ContainsFunc(model.Services, (*api.Service).HasBidiStreaming)
+	if hasBidiStreaming {
+		for _, pkg := range codec.extraPackages {
+			if pkg.name == "gaxi" && !slices.Contains(pkg.features, "_internal-grpc-client") {
+				pkg.features = append(pkg.features, "_internal-grpc-client")
+			}
+		}
+	}
+
 	ann := &modelAnnotations{
 		PackageName:      codec.packageName(model),
 		PackageNamespace: codec.rootModuleName(model),
@@ -237,7 +246,7 @@ func annotateModel(model *api.API, codec *codec) (*modelAnnotations, error) {
 		RequiredPackages: requiredPackages(codec.extraPackages),
 		ExternPackages:   externPackages(codec.extraPackages),
 		HasLROs:          hasLROs,
-		HasBidiStreaming: codec.templateOverride == "" && codec.includeBidiStreamingMethods && slices.ContainsFunc(model.Services, (*api.Service).HasBidiStreaming),
+		HasBidiStreaming: hasBidiStreaming,
 		CopyrightYear:    codec.generationYear,
 		BoilerPlate: append(license.HeaderBulk(),
 			"",
