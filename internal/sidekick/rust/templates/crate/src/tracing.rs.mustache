@@ -68,12 +68,10 @@ where T: super::stub::{{Codec.Name}} + std::fmt::Debug + Send + Sync {
     #[cfg(google_cloud_unstable_gapic_streaming)]
     async fn {{Codec.Name}}(
         &self,
+        req_stream: std::pin::Pin<Box<dyn tokio_stream::Stream<Item = {{InputType.Codec.QualifiedName}}> + Send>>,
         options: crate::RequestOptions,
-    ) -> (
-        google_cloud_gax::streaming::RequestSender<{{InputType.Codec.QualifiedName}}>,
-        google_cloud_gax::streaming::ResponseReceiver<{{OutputType.Codec.QualifiedName}}>,
-    ) {
-        self.inner.{{Codec.Name}}(options).await
+    ) -> crate::Result<std::pin::Pin<Box<dyn tokio_stream::Stream<Item = crate::Result<{{OutputType.Codec.QualifiedName}}>> + Send>>> {
+        self.inner.{{Codec.Name}}(req_stream, options).await
     }
     {{/Codec.IsBidiStreaming}}
     {{^Codec.IsBidiStreaming}}

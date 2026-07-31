@@ -131,14 +131,15 @@ impl {{Codec.Name}} {
     {{#Codec.IsBidiStreaming}}
     #[cfg(google_cloud_unstable_gapic_streaming)]
     {{> /templates/common/client_method_preamble}}
-    pub async fn {{Codec.Name}}(
+    pub async fn {{Codec.Name}}<S>(
         &self,
+        req_stream: S,
         options: crate::RequestOptions,
-    ) -> (
-        google_cloud_gax::streaming::RequestSender<{{InputType.Codec.QualifiedName}}>,
-        google_cloud_gax::streaming::ResponseReceiver<{{OutputType.Codec.QualifiedName}}>,
-    ) {
-        self.inner.{{Codec.Name}}(options).await
+    ) -> crate::Result<std::pin::Pin<Box<dyn tokio_stream::Stream<Item = crate::Result<{{OutputType.Codec.QualifiedName}}>> + Send>>>
+    where
+        S: tokio_stream::Stream<Item = {{InputType.Codec.QualifiedName}}> + Send + 'static,
+    {
+        self.inner.{{Codec.Name}}(Box::pin(req_stream), options).await
     }
     {{/Codec.IsBidiStreaming}}
     {{^Codec.IsBidiStreaming}}
