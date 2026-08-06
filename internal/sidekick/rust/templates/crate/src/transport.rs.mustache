@@ -140,7 +140,7 @@ impl super::stub::{{Codec.Name}} for {{Codec.Name}} {
         use futures::stream::StreamExt as _;
 
         {{! TODO(#6835) - provide a way to configure the channel size }}
-        let (req_tx, mut req_rx) = tokio::sync::mpsc::channel::<{{InputType.Codec.QualifiedName}}>(16);
+        let (req_tx, mut req_rx) = tokio::sync::mpsc::channel::<crate::prost::{{InputType.Codec.PackageModuleName}}::{{InputType.Codec.Name}}>(16);
         let (resp_tx, resp_rx) = tokio::sync::mpsc::channel::<crate::Result<{{OutputType.Codec.QualifiedName}}>>(16);
 
         let grpc_client = self.grpc_inner.clone();
@@ -150,10 +150,8 @@ impl super::stub::{{Codec.Name}} for {{Codec.Name}} {
                 None => return,
             };
 
-            {{! TODO(#6835) - propagate request serialization errors back to send() instead of using expect() }}
             let req_stream = futures::stream::once(async move { first_req })
-                .chain(tokio_stream::wrappers::ReceiverStream::new(req_rx))
-                .map(|v| v.to_proto().expect("request serialization failed"));
+                .chain(tokio_stream::wrappers::ReceiverStream::new(req_rx));
 
             let extensions = {
                 let mut e = gaxi::grpc::tonic::Extensions::new();
@@ -202,8 +200,20 @@ impl super::stub::{{Codec.Name}} for {{Codec.Name}} {
             }
         });
 
+        {{! TODO(#6835) - introduce a dedicated error kind for stream closed in gax }}
+        let request_sender = google_cloud_gax::streaming::RequestSender::from_fn(move |item: {{InputType.Codec.QualifiedName}}| {
+            let req_tx = req_tx.clone();
+            async move {
+                let prost_item = item.to_proto().map_err(google_cloud_gax::error::Error::ser)?;
+                req_tx
+                    .send(prost_item)
+                    .await
+                    .map_err(|_| google_cloud_gax::error::Error::io("cannot send request: stream is closed"))
+            }
+        });
+
         (
-            google_cloud_gax::streaming::RequestSender::new(req_tx),
+            request_sender,
             google_cloud_gax::streaming::ResponseReceiver::new(resp_rx),
         )
     }
