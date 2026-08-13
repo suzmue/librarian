@@ -291,10 +291,14 @@ func TestParseOptions(t *testing.T) {
 		{
 			Format: libconfig.SpecProtobuf,
 			Options: map[string]string{
-				"extra-modules": "a,b,c",
+				"extra-modules": "a,b:.test.v1.Msg,c",
 			},
 			Update: func(c *codec) {
-				c.extraModules = []string{"a", "b", "c"}
+				c.extraModules = []extraModuleConfig{
+					{Name: "a"},
+					{Name: "b", GatedByMessage: ".test.v1.Msg"},
+					{Name: "c"},
+				}
 			},
 		},
 		{

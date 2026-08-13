@@ -168,20 +168,28 @@ pub(crate) mod info {
 }
 
 // Define some shortcuts for imported crates.
+#[allow(unused_imports)]
 pub(crate) use google_cloud_gax::client_builder::ClientBuilder;
+#[allow(unused_imports)]
 pub(crate) use google_cloud_gax::client_builder::Result as ClientBuilderResult;
+#[allow(unused_imports)]
 pub(crate) use google_cloud_gax::client_builder::internal::ClientFactory;
+#[allow(unused_imports)]
 pub(crate) use google_cloud_gax::client_builder::internal::new_builder as new_client_builder;
+#[allow(unused_imports)]
 pub(crate) use google_cloud_gax::options::RequestOptions;
 {{#Codec.HasBidiStreaming}}
 #[cfg(google_cloud_unstable_gapic_streaming)]
 pub(crate) use google_cloud_gax::options::BidiStreamOptions;
 {{/Codec.HasBidiStreaming}}
+#[allow(unused_imports)]
 pub(crate) use google_cloud_gax::options::internal::RequestBuilder;
+#[allow(unused_imports)]
 pub(crate) use google_cloud_gax::response::Response;
 {{/Codec.HasServices}}
 {{#Codec.ExtraModules}}
 
+{{> /templates/common/feature_gate}}
 #[allow(missing_docs)]
-pub mod {{{.}}};
+pub mod {{Codec.Name}};
 {{/Codec.ExtraModules}}

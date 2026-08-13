@@ -213,6 +213,12 @@ type RustModule struct {
 	Template string `yaml:"template"`
 }
 
+// RustExtraModule defines an extra module loaded by `lib.rs` and its feature gating requirements.
+type RustExtraModule struct {
+	Name           string `yaml:"name"`
+	GatedByMessage string `yaml:"gated_by_message,omitempty"`
+}
+
 // RustCrate contains Rust-specific library configuration. It inherits from
 // RustDefault, allowing library-specific overrides of global settings.
 type RustCrate struct {
@@ -221,6 +227,9 @@ type RustCrate struct {
 	// Modules specifies generation targets for veneer crates. Each module
 	// defines a source proto path, output location, and template to use.
 	Modules []*RustModule `yaml:"modules,omitempty"`
+
+	// ExtraModules specifies additional modules loaded by `lib.rs` and optional message dependencies for feature gating.
+	ExtraModules []*RustExtraModule `yaml:"extra_modules,omitempty"`
 
 	// PerServiceFeatures enables per-service feature flags.
 	PerServiceFeatures bool `yaml:"per_service_features,omitempty"`

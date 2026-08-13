@@ -176,6 +176,7 @@ where T: super::stub::{{Codec.Name}} + std::fmt::Debug + Send + Sync {
 {{/Codec.Services}}
 {{#Codec.HasServices}}
 {{#Codec.DetailedTracingAttributes}}
+#[allow(unused)]
 pub(crate) mod info {
     const NAME: &str = env!("CARGO_PKG_NAME");
     const VERSION: &str = env!("CARGO_PKG_VERSION");

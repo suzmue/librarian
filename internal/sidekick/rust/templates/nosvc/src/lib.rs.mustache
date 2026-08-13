@@ -45,5 +45,5 @@ limitations under the License.
 {{/HasDeprecatedEntities}}
 pub mod model;
 {{#Codec.ExtraModules}}
-pub mod {{{.}}};
+pub mod {{Codec.Name}};
 {{/Codec.ExtraModules}}

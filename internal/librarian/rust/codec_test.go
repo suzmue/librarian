@@ -1397,6 +1397,24 @@ func TestBuildCodec(t *testing.T) {
 				"package:dep2":                "feature=feat2,ignore=true",
 			},
 		},
+		{
+			name: "with rust extra_modules config",
+			library: &config.Library{
+				Name: "google-cloud-compute-v1",
+				Rust: &config.RustCrate{
+					ExtraModules: []*config.RustExtraModule{
+						{Name: "errors", GatedByMessage: ".google.cloud.compute.v1.Operation"},
+						{Name: "operation", GatedByMessage: ".google.cloud.compute.v1.Operation"},
+						{Name: "custom"},
+					},
+				},
+			},
+			want: map[string]string{
+				"package-name-override": "google-cloud-compute-v1",
+				"extra-modules":         "errors:.google.cloud.compute.v1.Operation,operation:.google.cloud.compute.v1.Operation,custom",
+				"release-level":         "stable",
+			},
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			sc := test.sc

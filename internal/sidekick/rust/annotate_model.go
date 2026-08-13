@@ -67,7 +67,7 @@ type modelAnnotations struct {
 	// true.
 	DefaultFeatures []string
 	// A list of additional modules loaded by the `lib.rs` file.
-	ExtraModules []string
+	ExtraModules []*extraModule
 	// If true, at lease one service has a method we cannot wrap (yet).
 	Incomplete bool
 	// If true, the generator will produce reference documentation samples for message fields setters.
@@ -87,6 +87,27 @@ type modelAnnotations struct {
 	// selected at the model level will be skipped for Rust generation
 	// so we need to choose a different one.
 	QuickstartService *api.Service
+}
+
+type extraModule struct {
+	Codec *extraModuleAnnotation
+}
+
+type extraModuleAnnotation struct {
+	Name           string
+	GatedByMessage string
+	FeatureGates   []string
+	FeatureGatesOp string
+}
+
+// MultiFeatureGates returns true if there are multiple feature gates.
+func (a *extraModuleAnnotation) MultiFeatureGates() bool {
+	return len(a.FeatureGates) > 1
+}
+
+// SingleFeatureGate returns true if there is a single feature gate.
+func (a *extraModuleAnnotation) SingleFeatureGate() bool {
+	return len(a.FeatureGates) == 1
 }
 
 // IsWktCrate returns true when bootstrapping the well-known types crate the templates add some
@@ -271,6 +292,16 @@ func annotateModel(model *api.API, codec *codec) (*modelAnnotations, error) {
 		includeRpcStatusConversion = true
 	}
 
+	var extraModules []*extraModule
+	for _, mod := range codec.extraModules {
+		extraModules = append(extraModules, &extraModule{
+			Codec: &extraModuleAnnotation{
+				Name:           mod.Name,
+				GatedByMessage: mod.GatedByMessage,
+			},
+		})
+	}
+
 	ann := &modelAnnotations{
 		PackageName:                codec.packageName(model),
 		PackageNamespace:           codec.rootModuleName(model),
@@ -294,7 +325,7 @@ func annotateModel(model *api.API, codec *codec) (*modelAnnotations, error) {
 		DisabledRustdocWarnings: codec.disabledRustdocWarnings,
 		DisabledClippyWarnings:  codec.disabledClippyWarnings,
 		PerServiceFeatures:      codec.perServiceFeatures && len(servicesSubset) > 0,
-		ExtraModules:            codec.extraModules,
+		ExtraModules:            extraModules,
 		Incomplete: slices.ContainsFunc(model.Services, func(s *api.Service) bool {
 			return slices.ContainsFunc(s.Methods, func(m *api.Method) bool { return !codec.generateMethod(m) })
 		}),
@@ -379,6 +410,21 @@ func (c *codec) addFeatureAnnotations(model *api.API, ann *modelAnnotations) {
 		annotation.FeatureGatesOp = "all"
 		annotation.FeatureGates = allFeatures
 	}
+	for _, mod := range ann.ExtraModules {
+		if mod.Codec.GatedByMessage != "" {
+			msgID := mod.Codec.GatedByMessage
+			msg := model.Message(msgID)
+			if msg == nil {
+				msg = model.Message(strings.TrimPrefix(msgID, "."))
+			}
+			if msg != nil && msg.Codec != nil {
+				msgAnn := msg.Codec.(*messageAnnotation)
+				mod.Codec.FeatureGates = msgAnn.FeatureGates
+				mod.Codec.FeatureGatesOp = msgAnn.FeatureGatesOp
+			}
+		}
+	}
+
 	ann.DefaultFeatures = c.defaultFeatures
 	if ann.DefaultFeatures == nil {
 		ann.DefaultFeatures = allFeatures

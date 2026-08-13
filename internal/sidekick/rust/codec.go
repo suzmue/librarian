@@ -165,7 +165,15 @@ func newCodec(specificationFormat string, options map[string]string) (*codec, er
 			}
 			codec.hasVeneer = value
 		case key == "extra-modules":
-			codec.extraModules = splitOption(definition)
+			var extraModules []extraModuleConfig
+			for _, opt := range splitOption(definition) {
+				name, gatedBy, _ := strings.Cut(opt, ":")
+				extraModules = append(extraModules, extraModuleConfig{
+					Name:           name,
+					GatedByMessage: gatedBy,
+				})
+			}
+			codec.extraModules = extraModules
 		case key == "internal-types":
 			codec.internalTypes = splitOption(definition)
 		case key == "routing-required":
@@ -266,6 +274,11 @@ func parsePackageOption(key, definition string) (*packageOption, error) {
 	return &packageOption{pkg: pkg, otherNames: specificationPackages}, nil
 }
 
+type extraModuleConfig struct {
+	Name           string
+	GatedByMessage string
+}
+
 type codec struct {
 	// Package name override. If not empty, overrides the default package name.
 	packageNameOverride string
@@ -337,7 +350,7 @@ type codec struct {
 	// If true, there is a handwritten client surface.
 	hasVeneer bool
 	// Additional modules, maybe with hand-crafted code.
-	extraModules []string
+	extraModules []extraModuleConfig
 	// A list of types which should only be `pub(crate)`.
 	//
 	// In rare cases, it is easiest to manage type visibility via the codec

@@ -114,7 +114,13 @@ func buildCodec(library *config.Library, releaseLevel string) map[string]string 
 	if library.SkipRelease {
 		codec["not-for-publication"] = "true"
 	}
-	if extraModules := extraModulesFromKeep(library.Keep); len(extraModules) > 0 {
+	if library.Rust != nil && len(library.Rust.ExtraModules) > 0 {
+		var extraModules []string
+		for _, mod := range library.Rust.ExtraModules {
+			extraModules = append(extraModules, formatExtraModule(mod))
+		}
+		codec["extra-modules"] = strings.Join(extraModules, ",")
+	} else if extraModules := extraModulesFromKeep(library.Keep); len(extraModules) > 0 {
 		codec["extra-modules"] = strings.Join(extraModules, ",")
 	}
 	if library.Rust == nil {
@@ -203,6 +209,13 @@ func extraModulesFromKeep(keep []string) []string {
 		}
 	}
 	return modules
+}
+
+func formatExtraModule(mod *config.RustExtraModule) string {
+	if mod.GatedByMessage != "" {
+		return mod.Name + ":" + mod.GatedByMessage
+	}
+	return mod.Name
 }
 
 func formatPackageDependency(dep *config.RustPackageDependency) string {

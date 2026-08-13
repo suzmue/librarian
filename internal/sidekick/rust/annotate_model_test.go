@@ -371,7 +371,9 @@ func TestPackageNames(t *testing.T) {
 		Services:                  []*api.Service{},
 		NameToLower:               "workflows-v1",
 		PerServiceFeatures:        false, // no services
-		ExtraModules:              []string{"operation"},
+		ExtraModules: []*extraModule{
+			{Codec: &extraModuleAnnotation{Name: "operation"}},
+		},
 		GenerateSetterSamples:     true,
 		GenerateRpcSamples:        true,
 		DetailedTracingAttributes: true,
@@ -692,3 +694,38 @@ func TestExternalTypesAnnotations(t *testing.T) {
 		t.Errorf("enumAnn.RelativeName = %q, want %q", enumAnn.RelativeName, want)
 	}
 }
+
+func TestAnnotateModelWithExtraModulesFeatureGating(t *testing.T) {
+	model := annotateMethodModel(t)
+	if err := api.CrossReference(model); err != nil {
+		t.Fatal(err)
+	}
+	codec := newTestCodec(t, libconfig.SpecDiscovery, "", map[string]string{
+		"per-service-features": "true",
+		"extra-modules":        "errors:.test.v1.Response,other",
+	})
+	got, err := annotateModel(model, codec)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wantExtraModules := []*extraModule{
+		{
+			Codec: &extraModuleAnnotation{
+				Name:           "errors",
+				GatedByMessage: ".test.v1.Response",
+				FeatureGates:   []string{"resource-service"},
+				FeatureGatesOp: "any",
+			},
+		},
+		{
+			Codec: &extraModuleAnnotation{
+				Name: "other",
+			},
+		},
+	}
+	if diff := cmp.Diff(wantExtraModules, got.ExtraModules); diff != "" {
+		t.Errorf("mismatch (-want +got):\n%s", diff)
+	}
+}
+
