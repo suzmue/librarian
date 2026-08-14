@@ -303,6 +303,22 @@ func TestGenerateBidiStreaming(t *testing.T) {
         Ok((request_sender, response_receiver))
     }`,
 		},
+		{
+			name:     "client: transport note under Configuration",
+			file:     "src/client.rs",
+			startStr: "/// # Configuration\n",
+			endStr:   "/// on this builder apply across both transports.\n",
+			want: `/// # Configuration
+///
+/// To configure ` + "`Protocol`" + ` use the ` + "`with_*`" + ` methods in the type returned
+/// by [builder()][Protocol::builder]. The default configuration should
+/// work for most applications.
+///
+/// Note: ` + "`Protocol`" + ` uses a hybrid transport model (unary RPCs execute over
+/// REST/JSON, while streaming RPCs execute over gRPC/Protobuf). Options configured
+/// on this builder apply across both transports.
+`,
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			content := readFile(test.file)

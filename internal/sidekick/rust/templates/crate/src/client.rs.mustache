@@ -43,7 +43,14 @@ limitations under the License.
 ///
 /// To configure `{{Codec.Name}}` use the `with_*` methods in the type returned
 /// by [builder()][{{Codec.Name}}::builder]. The default configuration should
-/// work for most applications. Common configuration changes include
+/// work for most applications.
+{{#Codec.HasBidiStreaming}}
+///
+/// Note: `{{Codec.Name}}` uses a hybrid transport model (unary RPCs execute over
+/// REST/JSON, while streaming RPCs execute over gRPC/Protobuf). Options configured
+/// on this builder apply across both transports.
+{{/Codec.HasBidiStreaming}}
+/// Common configuration changes include
 ///
 /// * [with_endpoint()]: by default this client uses the global default endpoint
 ///   (`https://{{Model.Codec.DefaultHost}}`). Applications using regional
