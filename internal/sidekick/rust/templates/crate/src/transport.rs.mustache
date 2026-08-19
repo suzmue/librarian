@@ -136,7 +136,6 @@ impl super::stub::{{Codec.Name}} for {{Codec.Name}} {
         google_cloud_gax::streaming::RequestSender<{{InputType.Codec.QualifiedName}}>,
         google_cloud_gax::streaming::ResponseReceiver<{{OutputType.Codec.QualifiedName}}>,
     ) {
-        {{! TODO(#6835) - support explicit routing parameters for bidirectional streaming RPCs }}
         let x_goog_request_params = "";
 
         let extensions = {
