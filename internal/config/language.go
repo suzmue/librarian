@@ -294,7 +294,6 @@ type RustCrate struct {
 	QuickstartServiceOverride string `yaml:"quickstart_service_override,omitempty"`
 }
 
-
 // RustAnyType represents a concrete message type that can be packed in a google.protobuf.Any field.
 type RustAnyType struct {
 	// ID is the fully qualified message ID (e.g. ".google.cloud.audit.AuditLog").

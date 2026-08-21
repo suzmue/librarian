@@ -37,6 +37,9 @@ impl gaxi::prost::ToProto<{{Codec.RelativeName}}> for {{Codec.QualifiedName}} {
             {{/Codec.IsBoxed}}
             {{/Codec.IsAnyField}}
             {{/Fields}}
+            {{#Codec.IsExternal}}
+            _ => Err(gaxi::prost::ConvertError::other("unexpected oneof variant in non-exhaustive enum")),
+            {{/Codec.IsExternal}}
         }
     }
 }

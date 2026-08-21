@@ -71,7 +71,6 @@ func newCodec(specificationFormat string, options map[string]string) (*codec, er
 		modulePath:              "crate::model",
 		extraPackages:           []*packagez{},
 		packageMapping:          map[string]*packagez{},
-		internalPackageMapping:  map[string]string{},
 		version:                 "0.0.0",
 		releaseLevel:            "preview",
 		systemParameters:        sysParams,
@@ -165,21 +164,10 @@ func newCodec(specificationFormat string, options map[string]string) (*codec, er
 				return nil, fmt.Errorf("cannot convert `has-veneer` value %q to boolean: %w", definition, err)
 			}
 			codec.hasVeneer = value
-		case key == "has-internal-modules":
-			value, err := strconv.ParseBool(definition)
-			if err != nil {
-				return nil, fmt.Errorf("cannot convert `has-internal-modules` value %q to boolean: %w", definition, err)
-			}
-			codec.hasInternalModules = value
-		case strings.HasPrefix(key, "internal-package:"):
-			pkgName := strings.TrimPrefix(key, "internal-package:")
-			codec.internalPackageMapping[pkgName] = definition
 		case key == "extra-modules":
 			codec.extraModules = splitOption(definition)
 		case key == "internal-types":
 			codec.internalTypes = splitOption(definition)
-		case key == "internal-packages":
-			codec.internalPackages = splitOption(definition)
 		case key == "routing-required":
 			value, err := strconv.ParseBool(definition)
 			if err != nil {
@@ -350,10 +338,6 @@ type codec struct {
 	hasVeneer bool
 	// Additional modules, maybe with hand-crafted code.
 	extraModules []string
-	// If true, the crate has internal modules under `src/internal_model/`.
-	hasInternalModules bool
-	// Maps protobuf package names to internal module paths (e.g. "google.cloud.audit" -> "crate::internal_model::audit").
-	internalPackageMapping map[string]string
 	// A list of types which should only be `pub(crate)`.
 	//
 	// In rare cases, it is easiest to manage type visibility via the codec
@@ -363,8 +347,6 @@ type codec struct {
 	//
 	// Only supports messages.
 	internalTypes []string
-	// A list of packages which are internal to this crate's model module.
-	internalPackages []string
 	// Configured Any fields for streaming RPCs.
 	anyFields []libconfig.RustAnyField
 	// If true, fail requests locally that do not yield a gRPC routing
@@ -656,10 +638,7 @@ func (c *codec) methodInOutTypeName(id string, model *api.API, sourceSpecificati
 // modelModule maps a package name in the model format (e.g. "google.cloud.longrunning") to the
 // module name containing the model (e.g. "google_cloud_longrunning::model").
 func (c *codec) modelModule(packageName, sourceSpecificationPackageName string) (string, error) {
-	if modPath, ok := c.internalPackageMapping[packageName]; ok {
-		return modPath, nil
-	}
-	if packageName == sourceSpecificationPackageName || packageName == api.ReservedPackageName || slices.Contains(c.internalPackages, packageName) {
+	if packageName == sourceSpecificationPackageName || packageName == api.ReservedPackageName {
 		return c.modulePath, nil
 	}
 	mapped, ok := c.packageMapping[packageName]
@@ -1461,14 +1440,20 @@ func findUsedPackages(model *api.API, c *codec) {
 	for _, enum := range model.Enums {
 		usePackage(enum.Package, model, c)
 	}
-	if len(c.internalPackageMapping) > 0 {
-		for msg := range model.AllMessages() {
-			if _, ok := c.internalPackageMapping[msg.Package]; ok {
-				findUsedPackagesMessage(msg, model, c, map[string]bool{})
+	for _, message := range model.ExternalMessages {
+		usePackage(message.Package, model, c)
+		findUsedPackagesMessage(message, model, c, map[string]bool{})
+	}
+	for _, enum := range model.ExternalEnums {
+		usePackage(enum.Package, model, c)
+	}
+	for _, af := range c.anyFields {
+		for _, at := range af.Types {
+			if m := model.Message(at.ID); m != nil {
+				usePackage(m.Package, model, c)
+				findUsedPackagesMessage(m, model, c, map[string]bool{})
 			}
-		}
-		for e := range model.AllEnums() {
-			if _, ok := c.internalPackageMapping[e.Package]; ok {
+			if e := model.Enum(at.ID); e != nil {
 				usePackage(e.Package, model, c)
 			}
 		}

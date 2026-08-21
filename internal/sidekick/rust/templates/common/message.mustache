@@ -28,7 +28,6 @@ limitations under the License.
 #[deprecated]
 {{/Deprecated}}
 {{#Codec.Internal}}
-#[allow(dead_code)]
 pub(crate) struct {{Codec.Name}} {
 {{/Codec.Internal}}
 {{^Codec.Internal}}
@@ -62,9 +61,6 @@ pub struct {{Codec.Name}} {
 }
 
 {{> /templates/common/feature_gate}}
-{{#Codec.Internal}}
-#[allow(dead_code)]
-{{/Codec.Internal}}
 impl {{Codec.Name}} {
     /// Creates a new default instance.
     pub fn new() -> Self {

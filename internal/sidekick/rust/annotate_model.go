@@ -54,7 +54,6 @@ type modelAnnotations struct {
 	ExternPackages             []string
 	HasLROs                    bool
 	HasBidiStreaming           bool
-	HasInternalModules         bool
 	IncludeRpcStatusConversion bool
 	AnyFieldTranscodings       []*anyFieldTranscoding
 	BidiStreamingServices      []*api.Service
@@ -367,7 +366,6 @@ func annotateModel(model *api.API, codec *codec) (*modelAnnotations, error) {
 		ExternPackages:             externPackages(codec.extraPackages),
 		HasLROs:                    hasLROs,
 		HasBidiStreaming:           hasBidiStreaming,
-		HasInternalModules:         codec.hasInternalModules,
 		IncludeRpcStatusConversion: includeRpcStatusConversion,
 		AnyFieldTranscodings:       anyFieldTranscodings,
 		BidiStreamingServices:      bidiStreamingServices,

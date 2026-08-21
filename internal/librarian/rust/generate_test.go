@@ -519,7 +519,7 @@ func TestGenerateLibrary(t *testing.T) {
 	}
 }
 
-func TestGenerateLibraryWithAnyFieldsCase3InternalModule(t *testing.T) {
+func TestGenerateLibraryWithAnyFieldsUnmappedPackageError(t *testing.T) {
 	testhelper.RequireCommand(t, "protoc")
 	testhelper.RequireCommand(t, "rustfmt")
 	testhelper.RequireCommand(t, "taplo")
@@ -580,30 +580,12 @@ func TestGenerateLibraryWithAnyFieldsCase3InternalModule(t *testing.T) {
 	sources := &sources.Sources{
 		Googleapis: googleapisDir,
 	}
-	if err := Generate(t.Context(), &config.Config{Language: "rust", Repo: "google-cloud-rust"}, library, sources); err != nil {
-		t.Fatal(err)
+	err = Generate(t.Context(), &config.Config{Language: "rust", Repo: "google-cloud-rust"}, library, sources)
+	if err == nil {
+		t.Fatal("expected error for unmapped Any type package, got nil")
 	}
-
-	for _, check := range []struct {
-		path string
-		want string
-	}{
-		{filepath.Join(outDir, "src", "lib.rs"), "pub(crate) mod internal_model;"},
-		{filepath.Join(outDir, "src", "internal_model", "mod.rs"), "pub(crate) mod location;"},
-		{filepath.Join(outDir, "src", "internal_model", "location", "mod.rs"), "Location"},
-	} {
-		t.Run(check.path, func(t *testing.T) {
-			if _, err := os.Stat(check.path); err != nil {
-				t.Fatal(err)
-			}
-			got, err := os.ReadFile(check.path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !strings.Contains(string(got), check.want) {
-				t.Errorf("%q missing expected string: %q", check.path, check.want)
-			}
-		})
+	if !strings.Contains(err.Error(), "missing package \"google.cloud.location\"") {
+		t.Errorf("expected error to mention missing package google.cloud.location, got: %v", err)
 	}
 }
 
@@ -766,31 +748,6 @@ func TestGenerateLibraryWithAnyFieldsCase2SameCrate(t *testing.T) {
 	}
 	if strings.Contains(string(libRsBytes), "internal_model") {
 		t.Errorf("expected lib.rs to NOT contain internal_model for Case 2, got:\n%s", string(libRsBytes))
-	}
-}
-
-func TestDeriveInternalModuleName(t *testing.T) {
-	for _, test := range []struct {
-		sourcePath string
-		pkgName    string
-		want       string
-	}{
-		{sourcePath: "google/cloud/audit", pkgName: "google.cloud.audit", want: "audit"},
-		{sourcePath: "google/appengine/logging/v1", pkgName: "google.appengine.logging.v1", want: "appengine"},
-		{sourcePath: "google/cloud/location", pkgName: "google.cloud.location", want: "location"},
-		{sourcePath: "google/devtools/cloudbuild/v1", pkgName: "google.devtools.cloudbuild.v1", want: "cloudbuild"},
-		{sourcePath: "google/iam/v1", pkgName: "google.iam.v1", want: "iam"},
-		{sourcePath: "google/type", pkgName: "google.type", want: "type"},
-		{sourcePath: "", pkgName: "google.cloud.audit", want: "audit"},
-		{sourcePath: "", pkgName: "google.appengine.logging.v1", want: "appengine"},
-		{sourcePath: "google/cloud/audit/audit_log.proto", pkgName: "google.cloud.audit", want: "audit"},
-	} {
-		t.Run(test.sourcePath+"_"+test.pkgName, func(t *testing.T) {
-			got := deriveInternalModuleName(test.sourcePath, test.pkgName)
-			if got != test.want {
-				t.Errorf("deriveInternalModuleName(%q, %q) = %q, want %q", test.sourcePath, test.pkgName, got, test.want)
-			}
-		})
 	}
 }
 
