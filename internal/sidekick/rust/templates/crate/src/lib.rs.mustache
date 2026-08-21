@@ -99,6 +99,11 @@ limitations under the License.
 /// The messages and enums that are part of this client library.
 #[allow(clippy::module_inception)]
 pub mod model;
+{{#Codec.HasInternalModules}}
+
+#[allow(dead_code, unused_imports, clippy::enum_variant_names)]
+pub(crate) mod internal_model;
+{{/Codec.HasInternalModules}}
 {{#Codec.HasServices}}
 
 pub use google_cloud_gax::Result;

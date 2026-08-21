@@ -1,0 +1,51 @@
+{{!
+Copyright 2026 Google LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+}}
+
+fn {{ToProtoFnName}}(
+    value: wkt::Any,
+) -> std::result::Result<prost_types::Any, gaxi::prost::ConvertError> {
+    use gaxi::prost::ToProto as _;
+    match value.type_url().unwrap_or_default() {
+        "" => Ok(prost_types::Any::default()),
+        {{#Types}}
+        "{{TypeURL}}" => value
+            .to_msg::<{{ModelType}}>()
+            .map_err(gaxi::prost::ConvertError::other)?
+            .to_proto()
+            .and_then(|prost_msg| {
+                prost_types::Any::from_msg(&prost_msg).map_err(gaxi::prost::ConvertError::other)
+            }),
+        {{/Types}}
+        type_url => Err(gaxi::prost::ConvertError::UnexpectedTypeUrl(type_url.to_string())),
+    }
+}
+
+fn {{FromProtoFnName}}(
+    value: prost_types::Any,
+) -> std::result::Result<wkt::Any, gaxi::prost::ConvertError> {
+    use gaxi::prost::FromProto as _;
+    match value.type_url.as_str() {
+        "" => Ok(wkt::Any::default()),
+        {{#Types}}
+        "{{TypeURL}}" => value
+            .to_msg::<{{ProstType}}>()
+            .map_err(gaxi::prost::ConvertError::other)?
+            .cnv()
+            .and_then(|our_msg| wkt::Any::from_msg(&our_msg).map_err(gaxi::prost::ConvertError::other)),
+        {{/Types}}
+        type_url => Err(gaxi::prost::ConvertError::UnexpectedTypeUrl(type_url.to_string())),
+    }
+}

@@ -20,12 +20,22 @@ impl gaxi::prost::ToProto<{{Codec.RelativeName}}> for {{Codec.QualifiedName}} {
     fn to_proto(self) -> std::result::Result<Self::Output, gaxi::prost::ConvertError> {
         match self {
             {{#Fields}}
+            {{#Codec.IsAnyField}}
+            {{^Codec.IsBoxed}}
+            Self::{{Codec.BranchName}}(v) => Ok(Self::Output::{{Codec.BranchName}}({{Codec.AnyToProtoFn}}(v)?)),
+            {{/Codec.IsBoxed}}
+            {{#Codec.IsBoxed}}
+            Self::{{Codec.BranchName}}(v) => Ok(Self::Output::{{Codec.BranchName}}({{Codec.AnyToProtoFn}}(*v)?)),
+            {{/Codec.IsBoxed}}
+            {{/Codec.IsAnyField}}
+            {{^Codec.IsAnyField}}
             {{^Codec.IsBoxed}}
             Self::{{Codec.BranchName}}(v) => Ok(Self::Output::{{Codec.BranchName}}(v.to_proto()?)),
             {{/Codec.IsBoxed}}
             {{#Codec.IsBoxed}}
             Self::{{Codec.BranchName}}(v) => Ok(Self::Output::{{Codec.BranchName}}((*v).to_proto()?)),
             {{/Codec.IsBoxed}}
+            {{/Codec.IsAnyField}}
             {{/Fields}}
         }
     }
@@ -37,6 +47,15 @@ impl gaxi::prost::FromProto<{{Codec.QualifiedName}}> for {{Codec.RelativeName}} 
         use {{Codec.QualifiedName}} as T;
         match self {
             {{#Fields}}
+            {{#Codec.IsAnyField}}
+            {{^Codec.IsBoxed}}
+            Self::{{Codec.BranchName}}(v) => Ok(T::{{Codec.BranchName}}({{Codec.AnyFromProtoFn}}(v)?)),
+            {{/Codec.IsBoxed}}
+            {{#Codec.IsBoxed}}
+            Self::{{Codec.BranchName}}(v) => Ok(T::{{Codec.BranchName}}(std::boxed::Box::new({{Codec.AnyFromProtoFn}}(v)?))),
+            {{/Codec.IsBoxed}}
+            {{/Codec.IsAnyField}}
+            {{^Codec.IsAnyField}}
             {{^IsEnum}}
             {{^Codec.IsBoxed}}
             Self::{{Codec.BranchName}}(v) => Ok(T::{{Codec.BranchName}}(v.cnv()?)),
@@ -48,6 +67,7 @@ impl gaxi::prost::FromProto<{{Codec.QualifiedName}}> for {{Codec.RelativeName}} 
             {{#IsEnum}}
             Self::{{Codec.BranchName}}(v) => Ok(T::{{Codec.BranchName}}(v.into())),
             {{/IsEnum}}
+            {{/Codec.IsAnyField}}
             {{/Fields}}
         }
     }

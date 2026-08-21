@@ -17,6 +17,7 @@ package rust
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -190,5 +191,242 @@ impl gaxi::prost::FromProto<crate::model::MessageWithSkippedAny> for MessageWith
 				t.Errorf("mismatch (-want +got):\n%s", diff)
 			}
 		})
+	}
+}
+
+func TestGenerateConvertAnyFields(t *testing.T) {
+	anyField := &api.Field{
+		Name:     "proto_payload",
+		JSONName: "protoPayload",
+		ID:       ".test.v1.LogEntry.proto_payload",
+		Typez:    api.TypezMessage,
+		TypezID:  api.WktAnyID,
+	}
+	logEntryMsg := &api.Message{
+		Name:    "LogEntry",
+		Package: "test.v1",
+		ID:      ".test.v1.LogEntry",
+		Fields:  []*api.Field{anyField},
+	}
+	auditMsg := &api.Message{
+		Name:    "AuditLog",
+		Package: "google.cloud.audit",
+		ID:      ".google.cloud.audit.AuditLog",
+		Fields: []*api.Field{
+			{
+				Name:     "service_name",
+				JSONName: "serviceName",
+				ID:       ".google.cloud.audit.AuditLog.service_name",
+				Typez:    api.TypezString,
+			},
+		},
+	}
+
+	model := api.NewTestAPI([]*api.Message{logEntryMsg}, []*api.Enum{}, []*api.Service{})
+	model.PackageName = "test.v1"
+	model.ExternalMessages = []*api.Message{auditMsg}
+	model.AddMessage(auditMsg)
+	if err := api.CrossReference(model); err != nil {
+		t.Fatal(err)
+	}
+
+	outDir := t.TempDir()
+	cfg := &parser.ModelConfig{
+		SpecificationFormat: libconfig.SpecProtobuf,
+		AnyFields: []libconfig.RustAnyField{
+			{
+				ID: ".test.v1.LogEntry.proto_payload",
+				Types: []libconfig.RustAnyType{
+					{
+						ID:         ".google.cloud.audit.AuditLog",
+						SourcePath: "google/cloud/audit",
+					},
+				},
+			},
+		},
+		Codec: map[string]string{
+			"package:wkt":                         "source=google.protobuf,package=google-cloud-wkt",
+			"template-override":                   "templates/convert-prost",
+			"internal-package:google.cloud.audit": "crate::internal_model::audit",
+		},
+	}
+	if err := Generate(t.Context(), model, outDir, cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	contents, err := os.ReadFile(filepath.Join(outDir, "convert.rs"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	str := string(contents)
+	if !strings.Contains(str, "fn any_to_proto_test_v1_log_entry_proto_payload") {
+		t.Errorf("convert.rs missing any_to_proto function:\n%s", str)
+	}
+	if !strings.Contains(str, "fn any_from_proto_test_v1_log_entry_proto_payload") {
+		t.Errorf("convert.rs missing any_from_proto function:\n%s", str)
+	}
+	if !strings.Contains(str, "any_to_proto_test_v1_log_entry_proto_payload(self.proto_payload)") {
+		t.Errorf("convert.rs ToProto missing call to any_to_proto:\n%s", str)
+	}
+	if !strings.Contains(str, ".set_proto_payload(any_from_proto_test_v1_log_entry_proto_payload(self.proto_payload)?)") {
+		t.Errorf("convert.rs FromProto missing call to any_from_proto:\n%s", str)
+	}
+	if !strings.Contains(str, "crate::internal_model::audit::AuditLog") {
+		t.Errorf("convert.rs missing reference to crate::internal_model::audit::AuditLog:\n%s", str)
+	}
+	if !strings.Contains(str, "impl gaxi::prost::ToProto<crate::prost::google::cloud::audit::AuditLog> for crate::internal_model::audit::AuditLog") {
+		t.Errorf("convert.rs missing ToProto for internal model AuditLog:\n%s", str)
+	}
+	if !strings.Contains(str, "impl gaxi::prost::FromProto<crate::internal_model::audit::AuditLog> for crate::prost::google::cloud::audit::AuditLog") {
+		t.Errorf("convert.rs missing FromProto for internal model AuditLog:\n%s", str)
+	}
+}
+
+func TestGenerateConvertWithAnyFieldCase1ExternalCrate(t *testing.T) {
+	anyField := &api.Field{
+		Name:     "proto_payload",
+		JSONName: "protoPayload",
+		ID:       ".test.v1.LogEntry.proto_payload",
+		Typez:    api.TypezMessage,
+		TypezID:  api.WktAnyID,
+	}
+	logEntryMsg := &api.Message{
+		Name:    "LogEntry",
+		Package: "test.v1",
+		ID:      ".test.v1.LogEntry",
+		Fields:  []*api.Field{anyField},
+	}
+	latLngMsg := &api.Message{
+		Name:    "LatLng",
+		Package: "google.type",
+		ID:      ".google.type.LatLng",
+		Fields: []*api.Field{
+			{
+				Name:     "latitude",
+				JSONName: "latitude",
+				ID:       ".google.type.LatLng.latitude",
+				Typez:    api.TypezDouble,
+			},
+		},
+	}
+
+	model := api.NewTestAPI([]*api.Message{logEntryMsg}, []*api.Enum{}, []*api.Service{})
+	model.PackageName = "test.v1"
+	model.ExternalMessages = []*api.Message{latLngMsg}
+	model.AddMessage(latLngMsg)
+	if err := api.CrossReference(model); err != nil {
+		t.Fatal(err)
+	}
+
+	outDir := t.TempDir()
+	cfg := &parser.ModelConfig{
+		SpecificationFormat: libconfig.SpecProtobuf,
+		AnyFields: []libconfig.RustAnyField{
+			{
+				ID: ".test.v1.LogEntry.proto_payload",
+				Types: []libconfig.RustAnyType{
+					{
+						ID:         ".google.type.LatLng",
+						SourcePath: "google/type",
+					},
+				},
+			},
+		},
+		Codec: map[string]string{
+			"package:wkt":               "source=google.protobuf,package=google-cloud-wkt",
+			"package:google-cloud-type": "source=google.type,package=google-cloud-type",
+			"template-override":         "templates/convert-prost",
+		},
+	}
+	if err := Generate(t.Context(), model, outDir, cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	contents, err := os.ReadFile(filepath.Join(outDir, "convert.rs"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	str := string(contents)
+	if !strings.Contains(str, "google_cloud_type::model::LatLng") {
+		t.Errorf("convert.rs missing reference to google_cloud_type::model::LatLng:\n%s", str)
+	}
+	if !strings.Contains(str, "impl gaxi::prost::ToProto<crate::prost::google::r#type::LatLng> for google_cloud_type::model::LatLng") {
+		t.Errorf("convert.rs missing ToProto for google_cloud_type::model::LatLng:\n%s", str)
+	}
+	if !strings.Contains(str, "impl gaxi::prost::FromProto<google_cloud_type::model::LatLng> for crate::prost::google::r#type::LatLng") {
+		t.Errorf("convert.rs missing FromProto for google_cloud_type::model::LatLng:\n%s", str)
+	}
+}
+
+func TestGenerateConvertWithAnyFieldCase2SameCrate(t *testing.T) {
+	anyField := &api.Field{
+		Name:     "proto_payload",
+		JSONName: "protoPayload",
+		ID:       ".test.v1.LogEntry.proto_payload",
+		Typez:    api.TypezMessage,
+		TypezID:  api.WktAnyID,
+	}
+	logEntryMsg := &api.Message{
+		Name:    "LogEntry",
+		Package: "test.v1",
+		ID:      ".test.v1.LogEntry",
+		Fields:  []*api.Field{anyField},
+	}
+	otherMsg := &api.Message{
+		Name:    "OtherMsg",
+		Package: "test.v1",
+		ID:      ".test.v1.OtherMsg",
+		Fields: []*api.Field{
+			{
+				Name:     "content",
+				JSONName: "content",
+				ID:       ".test.v1.OtherMsg.content",
+				Typez:    api.TypezString,
+			},
+		},
+	}
+
+	model := api.NewTestAPI([]*api.Message{logEntryMsg, otherMsg}, []*api.Enum{}, []*api.Service{})
+	model.PackageName = "test.v1"
+	if err := api.CrossReference(model); err != nil {
+		t.Fatal(err)
+	}
+
+	outDir := t.TempDir()
+	cfg := &parser.ModelConfig{
+		SpecificationFormat: libconfig.SpecProtobuf,
+		AnyFields: []libconfig.RustAnyField{
+			{
+				ID: ".test.v1.LogEntry.proto_payload",
+				Types: []libconfig.RustAnyType{
+					{
+						ID:         ".test.v1.OtherMsg",
+						SourcePath: "test/v1",
+					},
+				},
+			},
+		},
+		Codec: map[string]string{
+			"package:wkt":       "source=google.protobuf,package=google-cloud-wkt",
+			"template-override": "templates/convert-prost",
+		},
+	}
+	if err := Generate(t.Context(), model, outDir, cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	contents, err := os.ReadFile(filepath.Join(outDir, "convert.rs"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	str := string(contents)
+	if !strings.Contains(str, "crate::model::OtherMsg") {
+		t.Errorf("convert.rs missing reference to crate::model::OtherMsg:\n%s", str)
+	}
+	if !strings.Contains(str, "impl gaxi::prost::ToProto<OtherMsg> for crate::model::OtherMsg") {
+		t.Errorf("convert.rs missing ToProto for crate::model::OtherMsg:\n%s", str)
+	}
+	if !strings.Contains(str, "impl gaxi::prost::FromProto<crate::model::OtherMsg> for OtherMsg") {
+		t.Errorf("convert.rs missing FromProto for crate::model::OtherMsg:\n%s", str)
 	}
 }

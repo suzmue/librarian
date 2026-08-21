@@ -114,5 +114,5 @@ func buildRS(ctx context.Context, pc *libconfig.Protoc, rootPaths []string, tmpD
 		return fmt.Errorf("failed to find protoc: %w", err)
 	}
 	env["PROTOC"] = protocPath
-	return command.RunInDirWithEnv(ctx, tmpDir, env, command.Cargo, "build", "--features", "_generate-protos")
+	return command.RunInDirWithEnv(ctx, tmpDir, env, command.Cargo, "build", "--offline", "--features", "_generate-protos")
 }

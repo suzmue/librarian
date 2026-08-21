@@ -54,7 +54,9 @@ type modelAnnotations struct {
 	ExternPackages             []string
 	HasLROs                    bool
 	HasBidiStreaming           bool
+	HasInternalModules         bool
 	IncludeRpcStatusConversion bool
+	AnyFieldTranscodings       []*anyFieldTranscoding
 	BidiStreamingServices      []*api.Service
 	CopyrightYear              string
 	BoilerPlate                []string
@@ -169,14 +171,39 @@ func annotateModel(model *api.API, codec *codec) (*modelAnnotations, error) {
 			return nil, err
 		}
 	}
+	var fixExternalMessageRelativeNames func(m *api.Message, parentPrefix string)
+	fixExternalMessageRelativeNames = func(m *api.Message, parentPrefix string) {
+		ann := m.Codec.(*messageAnnotation)
+		if parentPrefix == "" {
+			ann.RelativeName = "crate::prost::" + packageToModuleName(m.Package) + "::" + toPascal(m.Name)
+			parentPrefix = "crate::prost::" + packageToModuleName(m.Package) + "::" + toSnake(m.Name)
+		} else {
+			ann.RelativeName = parentPrefix + "::" + toPascal(m.Name)
+			parentPrefix = parentPrefix + "::" + toSnake(m.Name)
+		}
+		for _, child := range m.Messages {
+			if child.Codec != nil {
+				fixExternalMessageRelativeNames(child, parentPrefix)
+			}
+		}
+		for _, childEnum := range m.Enums {
+			if childEnum.Codec != nil {
+				enumAnn := childEnum.Codec.(*enumAnnotation)
+				enumAnn.RelativeName = parentPrefix + "::" + enumName(childEnum)
+			}
+		}
+		for _, oneof := range m.OneOfs {
+			if oneof.Codec != nil {
+				oneofAnn := oneof.Codec.(*oneOfAnnotation)
+				oneofAnn.RelativeName = parentPrefix + "::" + oneofAnn.EnumName
+			}
+		}
+	}
 	for _, m := range model.ExternalMessages {
 		if err := codec.annotateMessage(m, model, true); err != nil {
 			return nil, err
 		}
-		// ExternalMessages (e.g. google.type.LatLng) are populated for convert-prost generation in hybrid crates.
-		// Override RelativeName so ToProto and FromProto resolve to crate::prost::<pkg>::<TypeName>.
-		ann := m.Codec.(*messageAnnotation)
-		ann.RelativeName = "crate::prost::" + packageToModuleName(m.Package) + "::" + toPascal(m.Name)
+		fixExternalMessageRelativeNames(m, "")
 	}
 	// External enums and messages get only basic annotations
 	// used for sample generation.
@@ -299,6 +326,38 @@ func annotateModel(model *api.API, codec *codec) (*modelAnnotations, error) {
 		extraFeatures = []string{lroOperationFeature}
 	}
 
+	var anyFieldTranscodings []*anyFieldTranscoding
+	for _, anyField := range codec.anyFields {
+		trans := &anyFieldTranscoding{
+			ToProtoFnName:   anyToProtoFnName(anyField.ID),
+			FromProtoFnName: anyFromProtoFnName(anyField.ID),
+		}
+		for _, anyType := range anyField.Types {
+			msg := model.Message(anyType.ID)
+			if msg == nil {
+				msg = model.Message("." + strings.TrimPrefix(anyType.ID, "."))
+			}
+			if msg == nil {
+				msg = model.Message(strings.TrimPrefix(anyType.ID, "."))
+			}
+			if msg != nil {
+				modelType, err := codec.fullyQualifiedMessageName(msg, model.PackageName)
+				if err != nil {
+					return nil, err
+				}
+				prostType := "crate::prost::" + packageToModuleName(msg.Package) + "::" + toPascal(msg.Name)
+				trans.Types = append(trans.Types, &anyTypeMapping{
+					TypeURL:   "type.googleapis.com/" + strings.TrimPrefix(anyType.ID, "."),
+					ModelType: modelType,
+					ProstType: prostType,
+				})
+			}
+		}
+		if len(trans.Types) > 0 {
+			anyFieldTranscodings = append(anyFieldTranscodings, trans)
+		}
+	}
+
 	ann := &modelAnnotations{
 		PackageName:                codec.packageName(model),
 		PackageNamespace:           codec.rootModuleName(model),
@@ -308,7 +367,9 @@ func annotateModel(model *api.API, codec *codec) (*modelAnnotations, error) {
 		ExternPackages:             externPackages(codec.extraPackages),
 		HasLROs:                    hasLROs,
 		HasBidiStreaming:           hasBidiStreaming,
+		HasInternalModules:         codec.hasInternalModules,
 		IncludeRpcStatusConversion: includeRpcStatusConversion,
+		AnyFieldTranscodings:       anyFieldTranscodings,
 		BidiStreamingServices:      bidiStreamingServices,
 		CopyrightYear:              codec.generationYear,
 		BoilerPlate: append(license.HeaderBulk(),
@@ -421,4 +482,37 @@ func packageToModuleName(p string) string {
 		components[i] = toSnake(c)
 	}
 	return strings.Join(components, "::")
+}
+
+type anyFieldTranscoding struct {
+	ToProtoFnName   string
+	FromProtoFnName string
+	Types           []*anyTypeMapping
+}
+
+type anyTypeMapping struct {
+	TypeURL   string
+	ModelType string
+	ProstType string
+}
+
+func sanitizeAnyFieldID(id string) string {
+	s := strings.TrimPrefix(id, ".")
+	parts := strings.Split(s, ".")
+	for i, p := range parts {
+		parts[i] = toSnake(p)
+	}
+	return strings.Join(parts, "_")
+}
+
+func anyToProtoFnName(fieldID string) string {
+	return "any_to_proto_" + sanitizeAnyFieldID(fieldID)
+}
+
+func anyFromProtoFnName(fieldID string) string {
+	return "any_from_proto_" + sanitizeAnyFieldID(fieldID)
+}
+
+func isAnyType(typezID string) bool {
+	return typezID == "google.protobuf.Any" || typezID == ".google.protobuf.Any"
 }

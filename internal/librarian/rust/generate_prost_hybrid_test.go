@@ -136,7 +136,7 @@ func TestFilterModelToStreaming(t *testing.T) {
 	bidiService := api.NewTestService("BidiService").WithPackage("google.test.v1").WithMethods(chatMethod)
 	model := api.NewTestAPI([]*api.Message{streamingMsg, unusedMsg}, []*api.Enum{}, []*api.Service{bidiService})
 
-	filtered, unused, _, err := filterModelToStreaming(model)
+	filtered, unused, _, err := filterModelToStreaming(model, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -172,7 +172,7 @@ func TestFilterModelToStreamingNonStreamingFieldLookup(t *testing.T) {
 
 	model := api.NewTestAPI([]*api.Message{streamMsg, unaryReq, childData}, []*api.Enum{}, []*api.Service{bidiService, unaryService})
 
-	filtered, _, _, err := filterModelToStreaming(model)
+	filtered, _, _, err := filterModelToStreaming(model, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -219,7 +219,7 @@ func TestFilterModelToStreamingExternalTypes(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	filtered, _, _, err := filterModelToStreaming(model)
+	filtered, _, _, err := filterModelToStreaming(model, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -249,7 +249,7 @@ func TestFilterModelToStreamingAnyError(t *testing.T) {
 
 	anyModel := api.NewTestAPI([]*api.Message{anyMsg}, []*api.Enum{}, []*api.Service{anyService})
 
-	_, _, _, err := filterModelToStreaming(anyModel)
+	_, _, _, err := filterModelToStreaming(anyModel, nil)
 	if err == nil {
 		t.Fatal("expected error for google.protobuf.Any, got nil")
 	}
@@ -291,7 +291,7 @@ func TestFilterModelToStreamingGoogleRpcStatus(t *testing.T) {
 	statusModel := api.NewTestAPI([]*api.Message{reqMsg}, []*api.Enum{}, []*api.Service{statusService})
 	statusModel.AddMessage(statusMsg)
 
-	filtered, unused, hasStatus, err := filterModelToStreaming(statusModel)
+	filtered, unused, hasStatus, err := filterModelToStreaming(statusModel, nil)
 	if err != nil {
 		t.Fatalf("unexpected error for google.rpc.Status: %v", err)
 	}
@@ -338,7 +338,7 @@ func TestFilterModelToStreamingNestedTypeParentPreservation(t *testing.T) {
 
 	model := api.NewTestAPI([]*api.Message{parent, child, sibling, streamReq}, []*api.Enum{}, []*api.Service{bidiService})
 
-	_, unusedTypes, _, err := filterModelToStreaming(model)
+	_, unusedTypes, _, err := filterModelToStreaming(model, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -352,6 +352,79 @@ func TestFilterModelToStreamingNestedTypeParentPreservation(t *testing.T) {
 		}
 		if unused == sibling.ID {
 			t.Errorf("sibling field message %q of parent should not be in unusedTypes", sibling.ID)
+		}
+	}
+}
+
+func TestFilterModelToStreamingAnyFieldsConfigured(t *testing.T) {
+	anyField := &api.Field{
+		Name:     "proto_payload",
+		ID:       ".google.logging.v2.LogEntry.proto_payload",
+		TypezID:  ".google.protobuf.Any",
+		Typez:    api.TypezMessage,
+		JSONName: "protoPayload",
+	}
+	entryMsg := api.NewTestMessage("LogEntry").WithPackage("google.logging.v2")
+	entryMsg.Fields = []*api.Field{anyField}
+
+	auditMsg := api.NewTestMessage("AuditLog").WithPackage("google.cloud.audit")
+	auditUnconfiguredAnyField := &api.Field{
+		Name:     "service_data",
+		ID:       ".google.cloud.audit.AuditLog.service_data",
+		TypezID:  ".google.protobuf.Any",
+		Typez:    api.TypezMessage,
+		JSONName: "serviceData",
+	}
+	auditMsg.Fields = []*api.Field{auditUnconfiguredAnyField}
+
+	requestMsg := api.NewTestMessage("RequestLog").WithPackage("google.appengine.logging.v1")
+
+	tailReq := api.NewTestMessage("TailLogEntriesRequest").WithPackage("google.logging.v2")
+	tailResp := api.NewTestMessage("TailLogEntriesResponse").WithPackage("google.logging.v2")
+	tailResp.Fields = []*api.Field{
+		{
+			Name:     "entries",
+			TypezID:  entryMsg.ID,
+			Typez:    api.TypezMessage,
+			Repeated: true,
+		},
+	}
+
+	tailMethod := api.NewTestMethod("TailLogEntries").WithInput(tailReq).WithOutput(tailResp).WithBidiStreaming()
+	loggingService := api.NewTestService("LoggingServiceV2").WithPackage("google.logging.v2").WithMethods(tailMethod)
+
+	model := api.NewTestAPI([]*api.Message{tailReq, tailResp, entryMsg}, []*api.Enum{}, []*api.Service{loggingService})
+	model.AddMessage(auditMsg)
+	model.AddMessage(requestMsg)
+
+	anyFields := []config.RustAnyField{
+		{
+			ID: ".google.logging.v2.LogEntry.proto_payload",
+			Types: []config.RustAnyType{
+				{
+					ID:         ".google.cloud.audit.AuditLog",
+					SourcePath: "google/cloud/audit",
+				},
+				{
+					ID:         ".google.appengine.logging.v1.RequestLog",
+					SourcePath: "google/appengine/logging/v1",
+				},
+			},
+		},
+	}
+
+	filtered, unusedTypes, _, err := filterModelToStreaming(model, anyFields)
+	if err != nil {
+		t.Fatalf("unexpected error with configured any fields: %v", err)
+	}
+
+	if len(filtered.ExternalMessages) != 2 {
+		t.Errorf("got %d ExternalMessages, want 2", len(filtered.ExternalMessages))
+	}
+
+	for _, unused := range unusedTypes {
+		if unused == auditMsg.ID || unused == requestMsg.ID {
+			t.Errorf("any type %q should not be in unusedTypes", unused)
 		}
 	}
 }

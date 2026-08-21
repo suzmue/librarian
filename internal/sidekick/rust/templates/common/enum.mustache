@@ -40,7 +40,13 @@ limitations under the License.
 {{#Deprecated}}
 #[deprecated]
 {{/Deprecated}}
+{{#Codec.Internal}}
+#[allow(dead_code)]
+pub(crate) enum {{Codec.Name}} {
+{{/Codec.Internal}}
+{{^Codec.Internal}}
 pub enum {{Codec.Name}} {
+{{/Codec.Internal}}
     {{#Codec.UniqueNames}}
     {{#Codec.DocLines}}
     {{{.}}}
@@ -67,6 +73,9 @@ pub enum {{Codec.Name}} {
 }}
 #[doc(hidden)]
 {{> /templates/common/feature_gate}}
+{{#Codec.Internal}}
+#[allow(dead_code)]
+{{/Codec.Internal}}
 pub mod {{Codec.ModuleName}} {
     {{! Very rarely, this is unused. It is easier to always disable the warning. }}
     #[allow(unused_imports)]
@@ -76,6 +85,9 @@ pub mod {{Codec.ModuleName}} {
 }
 
 {{> /templates/common/feature_gate}}
+{{#Codec.Internal}}
+#[allow(dead_code)]
+{{/Codec.Internal}}
 impl {{Codec.Name}} {
     /// Gets the enum value.
     ///

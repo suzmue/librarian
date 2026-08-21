@@ -40,12 +40,17 @@ func generateProstHybrid(ctx context.Context, model *api.API, library *config.Li
 		return nil
 	}
 
-	hybridModel, unusedTypes, hasGoogleRpcStatus, err := filterModelToStreaming(model)
+	var anyFields []config.RustAnyField
+	if library.Rust != nil {
+		anyFields = library.Rust.AnyFields
+	}
+	hybridModel, unusedTypes, hasGoogleRpcStatus, err := filterModelToStreaming(model, anyFields)
 	if err != nil {
 		return err
 	}
 
 	hybridConfig := *modelConfig
+	hybridConfig.AnyFields = anyFields
 	hybridConfig.Codec = maps.Clone(modelConfig.Codec)
 	if hybridConfig.Codec == nil {
 		hybridConfig.Codec = make(map[string]string)
@@ -60,6 +65,7 @@ func generateProstHybrid(ctx context.Context, model *api.API, library *config.Li
 	}
 
 	convertModelCfg := *modelConfig
+	convertModelCfg.AnyFields = anyFields
 	convertModelCfg.Codec = maps.Clone(modelConfig.Codec)
 	if hasGoogleRpcStatus {
 		convertModelCfg.Codec["include-rpc-status-conversion"] = "true"
@@ -77,12 +83,19 @@ func generateProstHybrid(ctx context.Context, model *api.API, library *config.Li
 // a sorted slice of all non-WKT unused type IDs to exclude via prost_build extern_path,
 // and a boolean indicating whether google.rpc.Status is referenced in the streaming path.
 // Errors if Any is encountered in the streaming reachability path.
-func filterModelToStreaming(model *api.API) (*api.API, []string, bool, error) {
+func filterModelToStreaming(model *api.API, anyFields []config.RustAnyField) (*api.API, []string, bool, error) {
 	type streamingTypeItem struct {
 		id       string
 		rpc      string
 		methodID string
 		path     string
+	}
+
+	anyFieldMap := make(map[string]config.RustAnyField)
+	for _, af := range anyFields {
+		anyFieldMap[af.ID] = af
+		anyFieldMap[strings.TrimPrefix(af.ID, ".")] = af
+		anyFieldMap["."+strings.TrimPrefix(af.ID, ".")] = af
 	}
 
 	streamingMsgs := make(map[string]bool)
@@ -192,6 +205,26 @@ func filterModelToStreaming(model *api.API) (*api.API, []string, bool, error) {
 			for _, f := range msg.Fields {
 				fieldPath := item.path + "." + f.Name
 				if isAnyType(f.TypezID) {
+					af, ok := anyFieldMap[f.ID]
+					if !ok {
+						af, ok = anyFieldMap[strings.TrimPrefix(f.ID, ".")]
+					}
+					if ok {
+						for _, anyType := range af.Types {
+							if anyType.ID != "" {
+								queue = append(queue, streamingTypeItem{
+									id:       anyType.ID,
+									rpc:      item.rpc,
+									methodID: item.methodID,
+									path:     fieldPath + " -> " + anyType.ID,
+								})
+							}
+						}
+						continue
+					}
+					if msg.Package != model.PackageName && msg.Package != api.ReservedPackageName {
+						continue
+					}
 					return nil, nil, false, anyError(fieldPath)
 				}
 				if f.Typez == api.TypezMessage && f.TypezID != "" {
@@ -210,6 +243,26 @@ func filterModelToStreaming(model *api.API) (*api.API, []string, bool, error) {
 				for _, f := range o.Fields {
 					fieldPath := item.path + "." + o.Name + "." + f.Name
 					if isAnyType(f.TypezID) {
+						af, ok := anyFieldMap[f.ID]
+						if !ok {
+							af, ok = anyFieldMap[strings.TrimPrefix(f.ID, ".")]
+						}
+						if ok {
+							for _, anyType := range af.Types {
+								if anyType.ID != "" {
+									queue = append(queue, streamingTypeItem{
+										id:       anyType.ID,
+										rpc:      item.rpc,
+										methodID: item.methodID,
+										path:     fieldPath + " -> " + anyType.ID,
+									})
+								}
+							}
+							continue
+						}
+						if msg.Package != model.PackageName && msg.Package != api.ReservedPackageName {
+							continue
+						}
 						return nil, nil, false, anyError(fieldPath)
 					}
 					if f.Typez == api.TypezMessage && f.TypezID != "" {

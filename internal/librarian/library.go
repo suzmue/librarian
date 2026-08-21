@@ -834,6 +834,9 @@ func mergeRust(dst, src *config.RustCrate) *config.RustCrate {
 	if src.NameOverrides != "" {
 		res.NameOverrides = src.NameOverrides
 	}
+	if src.AnyFields != nil {
+		res.AnyFields = src.AnyFields
+	}
 	res.Discovery = mergeCommonDiscovery(res.Discovery, src.Discovery)
 	if src.QuickstartServiceOverride != "" {
 		res.QuickstartServiceOverride = src.QuickstartServiceOverride

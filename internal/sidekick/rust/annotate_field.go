@@ -62,6 +62,14 @@ type fieldAnnotations struct {
 	// If true, this is a `wkt::NullValue` field, and also requires super-extra
 	// custom deserialization.
 	IsWktNullValue bool
+	// If true, this field is a configured Any field for streaming conversion.
+	IsAnyField bool
+	// The function name to convert this Any field to proto (e.g. any_to_proto_...).
+	AnyToProtoFn string
+	// The function name to convert this Any field from proto (e.g. any_from_proto_...).
+	AnyFromProtoFn string
+	// If true, this field is a google.protobuf.Any field that is not configured in AnyFields.
+	IsUnconfiguredAny bool
 	// Some fields may be the type of the message they are defined in.
 	// We need to know this in sample generation to avoid importing
 	// the parent type twice.
@@ -104,12 +112,14 @@ func (a *fieldAnnotations) MessageNameInExamples() string {
 		return a.AliasInExamples
 	}
 	if a.MessageType != nil {
-		ma, _ := a.MessageType.Codec.(*messageAnnotation)
-		return ma.Name
+		if ma, ok := a.MessageType.Codec.(*messageAnnotation); ok && ma != nil {
+			return ma.Name
+		}
 	}
 	if a.ValueField != nil && a.ValueField.MessageType != nil {
-		ma, _ := a.ValueField.MessageType.Codec.(*messageAnnotation)
-		return ma.Name
+		if ma, ok := a.ValueField.MessageType.Codec.(*messageAnnotation); ok && ma != nil {
+			return ma.Name
+		}
 	}
 	return ""
 }
@@ -213,6 +223,17 @@ func (c *codec) annotateField(field *api.Field, message *api.Message, model *api
 		ann.IsBoxed = true
 	}
 	ann.MapToBoxed = mapToBoxed(field, message, model)
+	for _, anyField := range c.anyFields {
+		if anyField.ID == field.ID || strings.TrimPrefix(anyField.ID, ".") == strings.TrimPrefix(field.ID, ".") {
+			ann.IsAnyField = true
+			ann.AnyToProtoFn = anyToProtoFnName(anyField.ID)
+			ann.AnyFromProtoFn = anyFromProtoFnName(anyField.ID)
+			break
+		}
+	}
+	if !ann.IsAnyField && isAnyType(field.TypezID) {
+		ann.IsUnconfiguredAny = true
+	}
 	field.Codec = ann
 	if field.Typez == api.TypezMessage {
 		if msg := model.Message(field.TypezID); msg != nil && msg.IsMap {

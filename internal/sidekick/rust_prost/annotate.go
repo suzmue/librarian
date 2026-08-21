@@ -16,6 +16,7 @@
 package rust_prost
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/googleapis/librarian/internal/license"
@@ -59,6 +60,19 @@ func (codec *codec) annotateModel(model *api.API, cfg *parser.ModelConfig) error
 	if err != nil {
 		return err
 	}
+	for _, anyField := range cfg.AnyFields {
+		for _, anyType := range anyField.Types {
+			if anyType.SourcePath != "" {
+				extra, err := protobuf.DetermineInputFiles(anyType.SourcePath, cfg.Source)
+				if err != nil {
+					return err
+				}
+				files = append(files, extra...)
+			}
+		}
+	}
+	slices.Sort(files)
+	files = slices.Compact(files)
 	for i, f := range files {
 		files[i] = strings.TrimPrefix(f, rootSource+"/")
 	}

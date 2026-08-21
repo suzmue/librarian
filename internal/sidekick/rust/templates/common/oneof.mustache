@@ -23,7 +23,13 @@ limitations under the License.
 {{> /templates/common/feature_gate}}
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
+{{#Codec.Internal}}
+#[allow(dead_code)]
+pub(crate) enum {{Codec.EnumName}} {
+{{/Codec.Internal}}
+{{^Codec.Internal}}
 pub enum {{Codec.EnumName}} {
+{{/Codec.Internal}}
     {{#Fields}}
     {{#Codec.DocLines}}
     {{{.}}}

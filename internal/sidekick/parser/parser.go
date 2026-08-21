@@ -60,8 +60,11 @@ type ModelConfig struct {
 	// Discovery poller configurations
 	Discovery *api.Discovery
 
-	// Resource heuristic enablement
+	// ResourceNameHeuristic enablement
 	ResourceNameHeuristic bool
+
+	// AnyFields contains configuration for Any fields and their supported concrete types for streaming RPCs.
+	AnyFields []config.RustAnyField
 
 	// Model overrides
 	Override api.ModelOverride

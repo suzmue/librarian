@@ -15,15 +15,23 @@
 package rust
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"io/fs"
+	"maps"
+	"os"
 	"path/filepath"
+	"slices"
 	"strings"
+	"time"
 
+	"github.com/iancoleman/strcase"
 	"github.com/googleapis/librarian/internal/command"
 	"github.com/googleapis/librarian/internal/config"
+	"github.com/googleapis/librarian/internal/license"
 	"github.com/googleapis/librarian/internal/serviceconfig"
+	"github.com/googleapis/librarian/internal/sidekick/api"
 	"github.com/googleapis/librarian/internal/sidekick/parser"
 	sidekickrust "github.com/googleapis/librarian/internal/sidekick/rust"
 	"github.com/googleapis/librarian/internal/sidekick/rust_prost"
@@ -80,6 +88,11 @@ func Generate(ctx context.Context, cfg *config.Config, library *config.Library, 
 	}
 	if !exists {
 		if err := create(ctx, library.Output); err != nil {
+			return err
+		}
+	}
+	if library.Rust != nil && len(library.Rust.AnyFields) > 0 {
+		if err := processAnyFields(ctx, library, sources, pc, modelConfig, model); err != nil {
 			return err
 		}
 	}
@@ -280,4 +293,325 @@ func findModuleByOutput(library *config.Library, output string) *config.RustModu
 	}
 
 	return nil
+}
+
+type internalModule struct {
+	name       string
+	sourcePath string
+	pkgName    string
+}
+
+func deriveInternalModuleName(sourcePath, pkgName string) string {
+	path := sourcePath
+	if path == "" {
+		path = strings.ReplaceAll(pkgName, ".", "/")
+	}
+	if strings.HasSuffix(path, ".proto") {
+		path = filepath.Dir(path)
+	}
+	path = strings.Trim(path, "/")
+	parts := strings.Split(path, "/")
+	if len(parts) > 0 && parts[0] == "google" {
+		parts = parts[1:]
+	}
+	if len(parts) > 1 {
+		switch parts[0] {
+		case "cloud", "devtools", "identity", "area120", "apps", "api":
+			parts = parts[1:]
+		}
+	}
+	if len(parts) == 0 {
+		return "internal"
+	}
+	return strcase.ToSnake(parts[0])
+}
+
+func externalPackageSet(modelConfig *parser.ModelConfig, library *config.Library) map[string]bool {
+	external := make(map[string]bool)
+	if modelConfig != nil {
+		for k, v := range modelConfig.Codec {
+			if strings.HasPrefix(k, "package:") {
+				isIgnore := false
+				var srcs []string
+				for part := range strings.SplitSeq(v, ",") {
+					tokens := strings.SplitN(part, "=", 2)
+					if len(tokens) == 2 {
+						switch tokens[0] {
+						case "ignore":
+							isIgnore = (tokens[1] == "true")
+						case "source":
+							srcs = append(srcs, tokens[1])
+						}
+					}
+				}
+				if !isIgnore {
+					for _, s := range srcs {
+						external[s] = true
+					}
+				}
+			}
+		}
+	}
+	if library != nil && library.Rust != nil {
+		for _, dep := range library.Rust.PackageDependencies {
+			if !dep.Ignore && dep.Source != "" {
+				external[dep.Source] = true
+			}
+		}
+	}
+	return external
+}
+
+func processAnyFields(ctx context.Context, library *config.Library, srcs *sources.Sources, pc *config.Protoc, modelConfig *parser.ModelConfig, mainModel *api.API) error {
+	externalPkgs := externalPackageSet(modelConfig, library)
+	loadedModels := make(map[string]*api.API)
+
+	var internalModules []*internalModule
+	internalModuleBySource := make(map[string]*internalModule)
+	usedNames := make(map[string]string)
+
+	if modelConfig.Codec == nil {
+		modelConfig.Codec = make(map[string]string)
+	}
+
+	for _, anyField := range library.Rust.AnyFields {
+		for _, anyType := range anyField.Types {
+			var rootMsg *api.Message
+			var pkgName string
+			var subModel *api.API
+
+			if anyType.SourcePath != "" {
+				var ok bool
+				subModel, ok = loadedModels[anyType.SourcePath]
+				if !ok {
+					src := sources.NewSourceConfig(srcs, library.Roots)
+					subCfg := *modelConfig
+					subCfg.SpecificationSource = anyType.SourcePath
+					subCfg.ServiceConfig = ""
+					subCfg.Source = src
+					subCfg.Protoc = pc
+					subCfg.Codec = nil
+					subCfg.CommentOverrides = nil
+					subCfg.PaginationOverrides = nil
+					subCfg.Discovery = nil
+					subCfg.Override = api.ModelOverride{}
+					var err error
+					subModel, err = parser.CreateModel(&subCfg)
+					if err != nil {
+						return fmt.Errorf("failed to load any source %q: %w", anyType.SourcePath, err)
+					}
+					loadedModels[anyType.SourcePath] = subModel
+				}
+				rootMsg = subModel.Message(anyType.ID)
+				if rootMsg == nil {
+					rootMsg = subModel.Message("." + strings.TrimPrefix(anyType.ID, "."))
+				}
+				if rootMsg == nil {
+					rootMsg = subModel.Message(strings.TrimPrefix(anyType.ID, "."))
+				}
+				if rootMsg == nil {
+					return fmt.Errorf("any type %q not found in source %q", anyType.ID, anyType.SourcePath)
+				}
+				pkgName = rootMsg.Package
+				if pkgName == "" {
+					pkgName = subModel.PackageName
+				}
+			} else {
+				rootMsg = mainModel.Message(anyType.ID)
+				if rootMsg == nil {
+					rootMsg = mainModel.Message("." + strings.TrimPrefix(anyType.ID, "."))
+				}
+				if rootMsg == nil {
+					rootMsg = mainModel.Message(strings.TrimPrefix(anyType.ID, "."))
+				}
+				if rootMsg != nil {
+					pkgName = rootMsg.Package
+				}
+			}
+
+			if pkgName == "" && rootMsg == nil {
+				return fmt.Errorf("any type %q not found in model and no source_path specified", anyType.ID)
+			}
+
+			// Case 1: External crate
+			if externalPkgs[pkgName] {
+				if subModel != nil && rootMsg != nil {
+					loadReachableTypes(mainModel, subModel, rootMsg)
+				}
+				continue
+			}
+
+			// Case 2: Same crate
+			if pkgName == mainModel.PackageName {
+				if subModel != nil && rootMsg != nil {
+					loadReachableTypes(mainModel, subModel, rootMsg)
+				}
+				continue
+			}
+
+			// Case 3: Foreign / Unrepresented proto -> automatically generate internal module
+			if anyType.SourcePath != "" {
+				if _, exists := internalModuleBySource[anyType.SourcePath]; !exists {
+					baseName := deriveInternalModuleName(anyType.SourcePath, pkgName)
+					name := baseName
+					suffix := 2
+					for existingPath, occupied := usedNames[name]; occupied && existingPath != anyType.SourcePath; existingPath, occupied = usedNames[name] {
+						name = fmt.Sprintf("%s_%d", baseName, suffix)
+						suffix++
+					}
+					usedNames[name] = anyType.SourcePath
+					mod := &internalModule{
+						name:       name,
+						sourcePath: anyType.SourcePath,
+						pkgName:    pkgName,
+					}
+					internalModules = append(internalModules, mod)
+					internalModuleBySource[anyType.SourcePath] = mod
+				}
+			}
+		}
+	}
+
+	if len(internalModules) == 0 {
+		return nil
+	}
+
+	year := library.CopyrightYear
+	if year == "" {
+		year = fmt.Sprintf("%04d", time.Now().Year())
+	}
+
+	for _, m := range internalModules {
+		src := sources.NewSourceConfig(srcs, library.Roots)
+		mCfg := *modelConfig
+		mCfg.SpecificationSource = m.sourcePath
+		mCfg.ServiceConfig = ""
+		mCfg.Source = src
+		mCfg.Protoc = pc
+		mCfg.CommentOverrides = nil
+		mCfg.PaginationOverrides = nil
+		mCfg.Discovery = nil
+		mCfg.Override = api.ModelOverride{}
+		mCfg.Codec = maps.Clone(modelConfig.Codec)
+		if mCfg.Codec == nil {
+			mCfg.Codec = make(map[string]string)
+		}
+		mCfg.Codec["template-override"] = "templates/mod"
+		mCfg.Codec["module-path"] = "crate::internal_model::" + m.name
+
+		mModel, err := parser.CreateModel(&mCfg)
+		if err != nil {
+			return fmt.Errorf("failed to create model for internal module %q (%q): %w", m.name, m.sourcePath, err)
+		}
+		outDir := filepath.Join(library.Output, "src", "internal_model", m.name)
+		if err := sidekickrust.Generate(ctx, mModel, outDir, &mCfg); err != nil {
+			return fmt.Errorf("failed to generate internal module %q: %w", m.name, err)
+		}
+
+		if mModel.PackageName != "" {
+			modelConfig.Codec["internal-package:"+mModel.PackageName] = "crate::internal_model::" + m.name
+		}
+		for msg := range mModel.AllMessages() {
+			if mainModel.Message(msg.ID) == nil {
+				mainModel.AddMessage(msg)
+			}
+		}
+		for e := range mModel.AllEnums() {
+			if mainModel.Enum(e.ID) == nil {
+				mainModel.AddEnum(e)
+			}
+		}
+	}
+
+	modelConfig.Codec["has-internal-modules"] = "true"
+	return generateInternalModelMod(library.Output, internalModules, year)
+}
+
+func generateInternalModelMod(outputDir string, modules []*internalModule, year string) error {
+	modDir := filepath.Join(outputDir, "src", "internal_model")
+	if err := os.MkdirAll(modDir, 0755); err != nil {
+		return err
+	}
+	var b strings.Builder
+	for _, line := range license.Header(year) {
+		b.WriteString("//" + line + "\n")
+	}
+	b.WriteString("//\n// Code generated by sidekick. DO NOT EDIT.\n\n")
+	sortedModules := slices.Clone(modules)
+	slices.SortFunc(sortedModules, func(a, b *internalModule) int {
+		return cmp.Compare(a.name, b.name)
+	})
+	for _, m := range sortedModules {
+		b.WriteString(fmt.Sprintf("pub(crate) mod %s;\n", m.name))
+	}
+	return os.WriteFile(filepath.Join(modDir, "mod.rs"), []byte(b.String()), 0644)
+}
+
+func loadReachableTypes(model *api.API, subModel *api.API, rootMsg *api.Message) {
+	queue := []*api.Message{rootMsg}
+	visited := make(map[string]bool)
+	for len(queue) > 0 {
+		m := queue[0]
+		queue = queue[1:]
+		if visited[m.ID] {
+			continue
+		}
+		visited[m.ID] = true
+		if model.Message(m.ID) == nil {
+			model.AddMessage(m)
+		}
+		if m.Parent != nil {
+			queue = append(queue, m.Parent)
+		}
+
+		for _, child := range m.Messages {
+			queue = append(queue, child)
+		}
+		for _, f := range m.Fields {
+			if f.Typez == api.TypezMessage && f.TypezID != "" && !isWKT(f.TypezID) && f.TypezID != ".google.rpc.Status" {
+				target := subModel.Message(f.TypezID)
+				if target == nil {
+					target = subModel.Message("." + strings.TrimPrefix(f.TypezID, "."))
+				}
+				if target != nil {
+					queue = append(queue, target)
+				}
+			}
+			if f.Typez == api.TypezEnum && f.TypezID != "" && !isWKT(f.TypezID) {
+				target := subModel.Enum(f.TypezID)
+				if target == nil {
+					target = subModel.Enum("." + strings.TrimPrefix(f.TypezID, "."))
+				}
+				if target != nil {
+					if model.Enum(target.ID) == nil {
+						model.AddEnum(target)
+					}
+				}
+			}
+		}
+		for _, o := range m.OneOfs {
+			for _, f := range o.Fields {
+				if f.Typez == api.TypezMessage && f.TypezID != "" && !isWKT(f.TypezID) && f.TypezID != ".google.rpc.Status" {
+					target := subModel.Message(f.TypezID)
+					if target == nil {
+						target = subModel.Message("." + strings.TrimPrefix(f.TypezID, "."))
+					}
+					if target != nil {
+						queue = append(queue, target)
+					}
+				}
+				if f.Typez == api.TypezEnum && f.TypezID != "" && !isWKT(f.TypezID) {
+					target := subModel.Enum(f.TypezID)
+					if target == nil {
+						target = subModel.Enum("." + strings.TrimPrefix(f.TypezID, "."))
+					}
+					if target != nil {
+						if model.Enum(target.ID) == nil {
+							model.AddEnum(target)
+						}
+					}
+				}
+			}
+		}
+	}
 }

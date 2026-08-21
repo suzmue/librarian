@@ -205,6 +205,9 @@ type RustModule struct {
 	// SpecificationFormat overrides the library-level specification format.
 	SpecificationFormat string `yaml:"specification_format,omitempty"`
 
+	// AnyFields contains configuration for Any fields and their supported concrete types for streaming RPCs.
+	AnyFields []RustAnyField `yaml:"any_fields,omitempty"`
+
 	// APIPath is the proto path to generate from (e.g., "google/storage/v2").
 	APIPath string `yaml:"api_path"`
 
@@ -278,6 +281,9 @@ type RustCrate struct {
 	// PaginationOverrides contains overrides for pagination configuration.
 	PaginationOverrides []RustPaginationOverride `yaml:"pagination_overrides,omitempty"`
 
+	// AnyFields contains configuration for Any fields and their supported concrete types for streaming RPCs.
+	AnyFields []RustAnyField `yaml:"any_fields,omitempty"`
+
 	// NameOverrides contains codec-level overrides for type and service names.
 	NameOverrides string `yaml:"name_overrides,omitempty"`
 
@@ -286,6 +292,25 @@ type RustCrate struct {
 
 	// QuickstartServiceOverride overrides the default heuristically selected service for the package-level quickstart.
 	QuickstartServiceOverride string `yaml:"quickstart_service_override,omitempty"`
+}
+
+
+// RustAnyType represents a concrete message type that can be packed in a google.protobuf.Any field.
+type RustAnyType struct {
+	// ID is the fully qualified message ID (e.g. ".google.cloud.audit.AuditLog").
+	ID string `yaml:"id"`
+
+	// SourcePath is the proto source path or directory for the type (e.g. "google/cloud/audit" or "google/cloud/audit/audit_log.proto").
+	SourcePath string `yaml:"source_path"`
+}
+
+// RustAnyField represents a configuration for a google.protobuf.Any field.
+type RustAnyField struct {
+	// ID is the fully qualified field ID (e.g. ".google.logging.v2.LogEntry.proto_payload").
+	ID string `yaml:"id"`
+
+	// Types is the list of supported concrete types for this Any field.
+	Types []RustAnyType `yaml:"types"`
 }
 
 // RustPackageDependency represents a package dependency configuration.

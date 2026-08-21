@@ -28,6 +28,9 @@ use crate as gaxi;
 {{#Codec.IncludeRpcStatusConversion}}
 {{> /templates/convert-prost/status}}
 {{/Codec.IncludeRpcStatusConversion}}
+{{#Codec.AnyFieldTranscodings}}
+{{> /templates/convert-prost/any_transcode}}
+{{/Codec.AnyFieldTranscodings}}
 {{#Enums}}
 {{> enum}}
 {{/Enums}}

@@ -31,6 +31,29 @@ impl gaxi::prost::ToProto<{{Codec.RelativeName}}> for {{Codec.QualifiedName}} {
         Ok(Self::Output {
             {{#Codec.BasicFields}}
             {{#Singular}}
+            {{#Codec.IsAnyField}}
+            {{^Optional}}
+            {{Codec.FieldName}}: {{Codec.AnyToProtoFn}}(self.{{Codec.FieldName}})?,
+            {{/Optional}}
+            {{#Optional}}
+            {{^Codec.MapToBoxed}}
+            {{Codec.FieldName}}: self.{{Codec.FieldName}}.map({{Codec.AnyToProtoFn}}).transpose()?,
+            {{/Codec.MapToBoxed}}
+            {{#Codec.MapToBoxed}}
+            {{Codec.FieldName}}: self.{{Codec.FieldName}}.map(|v| {{Codec.AnyToProtoFn}}(*v).map(std::boxed::Box::new)).transpose()?,
+            {{/Codec.MapToBoxed}}
+            {{/Optional}}
+            {{/Codec.IsAnyField}}
+            {{^Codec.IsAnyField}}
+            {{#Codec.IsUnconfiguredAny}}
+            {{#Optional}}
+            {{Codec.FieldName}}: None,
+            {{/Optional}}
+            {{^Optional}}
+            {{Codec.FieldName}}: Default::default(),
+            {{/Optional}}
+            {{/Codec.IsUnconfiguredAny}}
+            {{^Codec.IsUnconfiguredAny}}
             {{^Optional}}
             {{Codec.FieldName}}: self.{{Codec.FieldName}}.to_proto()?,
             {{/Optional}}
@@ -42,13 +65,20 @@ impl gaxi::prost::ToProto<{{Codec.RelativeName}}> for {{Codec.QualifiedName}} {
             {{Codec.FieldName}}: self.{{Codec.FieldName}}.map(|v| v.to_proto().map(std::boxed::Box::new)).transpose()?,
             {{/Codec.MapToBoxed}}
             {{/Optional}}
+            {{/Codec.IsUnconfiguredAny}}
+            {{/Codec.IsAnyField}}
             {{/Singular}}
             {{! A sequence or map with `google.protobuf.Any` is unlikely. If it ever happens, we see a break and fix it with more understanding }}
             {{#Repeated}}
+            {{#Codec.IsUnconfiguredAny}}
+            {{Codec.FieldName}}: Default::default(),
+            {{/Codec.IsUnconfiguredAny}}
+            {{^Codec.IsUnconfiguredAny}}
             {{Codec.FieldName}}: self.{{Codec.FieldName}}
                 .into_iter()
                 .map(|v| v.to_proto())
                 .collect::<std::result::Result<std::vec::Vec<_>, _>>()?,
+            {{/Codec.IsUnconfiguredAny}}
             {{/Repeated}}
             {{#Map}}
             {{Codec.FieldName}}: self.{{Codec.FieldName}}
@@ -75,15 +105,34 @@ impl gaxi::prost::FromProto<{{Codec.QualifiedName}}> for {{Codec.RelativeName}} 
             {{Codec.QualifiedName}}::new()
                 {{#Codec.BasicFields}}
                 {{#Singular}}
+                {{#Codec.IsAnyField}}
+                {{^Optional}}
+                .set_{{Codec.SetterName}}({{Codec.AnyFromProtoFn}}(self.{{Codec.FieldName}})?)
+                {{/Optional}}
+                {{#Optional}}
+                .set_or_clear_{{Codec.SetterName}}(self.{{Codec.FieldName}}.map({{Codec.AnyFromProtoFn}}).transpose()?)
+                {{/Optional}}
+                {{/Codec.IsAnyField}}
+                {{^Codec.IsAnyField}}
+                {{#Codec.IsUnconfiguredAny}}
+                {{! unconfigured any is left cleared / default }}
+                {{/Codec.IsUnconfiguredAny}}
+                {{^Codec.IsUnconfiguredAny}}
                 {{^Optional}}
                 .set_{{Codec.SetterName}}(self.{{Codec.FieldName}})
                 {{/Optional}}
                 {{#Optional}}
                 .set_or_clear_{{Codec.SetterName}}(self.{{Codec.FieldName}}.map(|v| v.cnv()).transpose()?)
                 {{/Optional}}
+                {{/Codec.IsUnconfiguredAny}}
+                {{/Codec.IsAnyField}}
                 {{/Singular}}
                 {{! A sequence or map with `google.protobuf.Any` is unlikely. If it ever happens, we see a break and fix it with more understanding }}
                 {{#Repeated}}
+                {{#Codec.IsUnconfiguredAny}}
+                {{! unconfigured any is left cleared / default }}
+                {{/Codec.IsUnconfiguredAny}}
+                {{^Codec.IsUnconfiguredAny}}
                 {{^IsEnum}}
                 .set_{{Codec.SetterName}}(self.{{Codec.FieldName}}.into_iter().map(|v| v.cnv())
                     .collect::<std::result::Result<std::vec::Vec<_>, _>>()?)
@@ -91,6 +140,7 @@ impl gaxi::prost::FromProto<{{Codec.QualifiedName}}> for {{Codec.RelativeName}} 
                 {{#IsEnum}}
                 .set_{{Codec.SetterName}}(self.{{Codec.FieldName}}.into_iter().map({{Codec.PrimitiveFieldType}}::from))
                 {{/IsEnum}}
+                {{/Codec.IsUnconfiguredAny}}
                 {{/Repeated}}
                 {{#Map}}
                 {{!

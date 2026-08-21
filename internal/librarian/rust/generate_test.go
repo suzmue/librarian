@@ -519,6 +519,281 @@ func TestGenerateLibrary(t *testing.T) {
 	}
 }
 
+func TestGenerateLibraryWithAnyFieldsCase3InternalModule(t *testing.T) {
+	testhelper.RequireCommand(t, "protoc")
+	testhelper.RequireCommand(t, "rustfmt")
+	testhelper.RequireCommand(t, "taplo")
+	testhelper.RequireCommand(t, "cargo")
+
+	googleapisDir, err := filepath.Abs("../../testdata/googleapis")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	oldValidate := validate
+	validate = func(ctx context.Context, outputDir string) error { return nil }
+	t.Cleanup(func() { validate = oldValidate })
+
+	temp := t.TempDir()
+	t.Chdir(temp)
+
+	libName := "google-cloud-secretmanager-v1"
+	outDir := "src/generated/cloud/secretmanager/v1"
+	contents := fmt.Appendf(nil, formatTestCargoToml, "")
+	if err := os.WriteFile("Cargo.toml", contents, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(outDir) })
+
+	library := &config.Library{
+		Name:          libName,
+		Version:       "0.1.0",
+		Output:        outDir,
+		CopyrightYear: "2025",
+		APIs: []*config.API{
+			{
+				Path: "google/cloud/secretmanager/v1",
+			},
+		},
+		Rust: &config.RustCrate{
+			RustDefault: config.RustDefault{
+				PackageDependencies: []*config.RustPackageDependency{
+					{Name: "wkt", Package: "google-cloud-wkt", Source: "google.protobuf"},
+					{Name: "iam_v1", Package: "google-cloud-iam-v1", Source: "google.iam.v1"},
+					{Name: "google-cloud-api", Package: "google-cloud-api", Source: "google.api"},
+					{Name: "google-cloud-type", Package: "google-cloud-type", Source: "google.type"},
+				},
+			},
+			AnyFields: []config.RustAnyField{
+				{
+					ID: ".google.cloud.secretmanager.v1.Secret.payload",
+					Types: []config.RustAnyType{
+						{
+							ID:         ".google.cloud.location.Location",
+							SourcePath: "google/cloud/location",
+						},
+					},
+				},
+			},
+		},
+	}
+	sources := &sources.Sources{
+		Googleapis: googleapisDir,
+	}
+	if err := Generate(t.Context(), &config.Config{Language: "rust", Repo: "google-cloud-rust"}, library, sources); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, check := range []struct {
+		path string
+		want string
+	}{
+		{filepath.Join(outDir, "src", "lib.rs"), "pub(crate) mod internal_model;"},
+		{filepath.Join(outDir, "src", "internal_model", "mod.rs"), "pub(crate) mod location;"},
+		{filepath.Join(outDir, "src", "internal_model", "location", "mod.rs"), "Location"},
+	} {
+		t.Run(check.path, func(t *testing.T) {
+			if _, err := os.Stat(check.path); err != nil {
+				t.Fatal(err)
+			}
+			got, err := os.ReadFile(check.path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(got), check.want) {
+				t.Errorf("%q missing expected string: %q", check.path, check.want)
+			}
+		})
+	}
+}
+
+func TestGenerateLibraryWithAnyFieldsCase1ExternalCrate(t *testing.T) {
+	testhelper.RequireCommand(t, "protoc")
+	testhelper.RequireCommand(t, "rustfmt")
+	testhelper.RequireCommand(t, "taplo")
+	testhelper.RequireCommand(t, "cargo")
+
+	googleapisDir, err := filepath.Abs("../../testdata/googleapis")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	oldValidate := validate
+	validate = func(ctx context.Context, outputDir string) error { return nil }
+	t.Cleanup(func() { validate = oldValidate })
+
+	temp := t.TempDir()
+	t.Chdir(temp)
+
+	libName := "google-cloud-secretmanager-v1"
+	outDir := "src/generated/cloud/secretmanager/v1"
+	contents := fmt.Appendf(nil, formatTestCargoToml, "")
+	if err := os.WriteFile("Cargo.toml", contents, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(outDir) })
+
+	library := &config.Library{
+		Name:          libName,
+		Version:       "0.1.0",
+		Output:        outDir,
+		CopyrightYear: "2025",
+		APIs: []*config.API{
+			{
+				Path: "google/cloud/secretmanager/v1",
+			},
+		},
+		Rust: &config.RustCrate{
+			RustDefault: config.RustDefault{
+				PackageDependencies: []*config.RustPackageDependency{
+					{Name: "wkt", Package: "google-cloud-wkt", Source: "google.protobuf"},
+					{Name: "iam_v1", Package: "google-cloud-iam-v1", Source: "google.iam.v1"},
+					{Name: "location", Package: "google-cloud-location", Source: "google.cloud.location"},
+					{Name: "google-cloud-api", Package: "google-cloud-api", Source: "google.api"},
+					{Name: "google-cloud-type", Package: "google-cloud-type", Source: "google.type"},
+				},
+			},
+			AnyFields: []config.RustAnyField{
+				{
+					ID: ".google.cloud.secretmanager.v1.Secret.payload",
+					Types: []config.RustAnyType{
+						{
+							ID:         ".google.type.Expr",
+							SourcePath: "google/type",
+						},
+					},
+				},
+			},
+		},
+	}
+	sources := &sources.Sources{
+		Googleapis: googleapisDir,
+	}
+	if err := Generate(t.Context(), &config.Config{Language: "rust", Repo: "google-cloud-rust"}, library, sources); err != nil {
+		t.Fatal(err)
+	}
+
+	internalModelDir := filepath.Join(outDir, "src", "internal_model")
+	if _, err := os.Stat(internalModelDir); !os.IsNotExist(err) {
+		t.Errorf("expected internal_model dir to NOT exist for Case 1 (external crate), but got: %v", err)
+	}
+
+	libRsPath := filepath.Join(outDir, "src", "lib.rs")
+	libRsBytes, err := os.ReadFile(libRsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(libRsBytes), "internal_model") {
+		t.Errorf("expected lib.rs to NOT contain internal_model for Case 1, got:\n%s", string(libRsBytes))
+	}
+}
+
+func TestGenerateLibraryWithAnyFieldsCase2SameCrate(t *testing.T) {
+	testhelper.RequireCommand(t, "protoc")
+	testhelper.RequireCommand(t, "rustfmt")
+	testhelper.RequireCommand(t, "taplo")
+	testhelper.RequireCommand(t, "cargo")
+
+	googleapisDir, err := filepath.Abs("../../testdata/googleapis")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	oldValidate := validate
+	validate = func(ctx context.Context, outputDir string) error { return nil }
+	t.Cleanup(func() { validate = oldValidate })
+
+	temp := t.TempDir()
+	t.Chdir(temp)
+
+	libName := "google-cloud-secretmanager-v1"
+	outDir := "src/generated/cloud/secretmanager/v1"
+	contents := fmt.Appendf(nil, formatTestCargoToml, "")
+	if err := os.WriteFile("Cargo.toml", contents, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(outDir) })
+
+	library := &config.Library{
+		Name:          libName,
+		Version:       "0.1.0",
+		Output:        outDir,
+		CopyrightYear: "2025",
+		APIs: []*config.API{
+			{
+				Path: "google/cloud/secretmanager/v1",
+			},
+		},
+		Rust: &config.RustCrate{
+			RustDefault: config.RustDefault{
+				PackageDependencies: []*config.RustPackageDependency{
+					{Name: "wkt", Package: "google-cloud-wkt", Source: "google.protobuf"},
+					{Name: "iam_v1", Package: "google-cloud-iam-v1", Source: "google.iam.v1"},
+					{Name: "location", Package: "google-cloud-location", Source: "google.cloud.location"},
+					{Name: "google-cloud-api", Package: "google-cloud-api", Source: "google.api"},
+					{Name: "google-cloud-type", Package: "google-cloud-type", Source: "google.type"},
+				},
+			},
+			AnyFields: []config.RustAnyField{
+				{
+					ID: ".google.cloud.secretmanager.v1.Secret.payload",
+					Types: []config.RustAnyType{
+						{
+							ID:         ".google.cloud.secretmanager.v1.Secret",
+							SourcePath: "google/cloud/secretmanager/v1",
+						},
+					},
+				},
+			},
+		},
+	}
+	sources := &sources.Sources{
+		Googleapis: googleapisDir,
+	}
+	if err := Generate(t.Context(), &config.Config{Language: "rust", Repo: "google-cloud-rust"}, library, sources); err != nil {
+		t.Fatal(err)
+	}
+
+	internalModelDir := filepath.Join(outDir, "src", "internal_model")
+	if _, err := os.Stat(internalModelDir); !os.IsNotExist(err) {
+		t.Errorf("expected internal_model dir to NOT exist for Case 2 (same crate), but got: %v", err)
+	}
+
+	libRsPath := filepath.Join(outDir, "src", "lib.rs")
+	libRsBytes, err := os.ReadFile(libRsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(libRsBytes), "internal_model") {
+		t.Errorf("expected lib.rs to NOT contain internal_model for Case 2, got:\n%s", string(libRsBytes))
+	}
+}
+
+func TestDeriveInternalModuleName(t *testing.T) {
+	for _, test := range []struct {
+		sourcePath string
+		pkgName    string
+		want       string
+	}{
+		{sourcePath: "google/cloud/audit", pkgName: "google.cloud.audit", want: "audit"},
+		{sourcePath: "google/appengine/logging/v1", pkgName: "google.appengine.logging.v1", want: "appengine"},
+		{sourcePath: "google/cloud/location", pkgName: "google.cloud.location", want: "location"},
+		{sourcePath: "google/devtools/cloudbuild/v1", pkgName: "google.devtools.cloudbuild.v1", want: "cloudbuild"},
+		{sourcePath: "google/iam/v1", pkgName: "google.iam.v1", want: "iam"},
+		{sourcePath: "google/type", pkgName: "google.type", want: "type"},
+		{sourcePath: "", pkgName: "google.cloud.audit", want: "audit"},
+		{sourcePath: "", pkgName: "google.appengine.logging.v1", want: "appengine"},
+		{sourcePath: "google/cloud/audit/audit_log.proto", pkgName: "google.cloud.audit", want: "audit"},
+	} {
+		t.Run(test.sourcePath+"_"+test.pkgName, func(t *testing.T) {
+			got := deriveInternalModuleName(test.sourcePath, test.pkgName)
+			if got != test.want {
+				t.Errorf("deriveInternalModuleName(%q, %q) = %q, want %q", test.sourcePath, test.pkgName, got, test.want)
+			}
+		})
+	}
+}
+
 func TestDefaultLibraryName(t *testing.T) {
 	for _, test := range []struct {
 		name string

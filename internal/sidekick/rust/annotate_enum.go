@@ -16,6 +16,7 @@ package rust
 
 import (
 	"log/slog"
+	"slices"
 	"strings"
 
 	"github.com/googleapis/librarian/internal/sidekick/api"
@@ -43,6 +44,8 @@ type enumAnnotation struct {
 	// If set, this enum is only enabled when some features are enabled
 	FeatureGates   []string
 	FeatureGatesOp string
+	// If true, this enum's visibility should only be `pub(crate)`
+	Internal bool
 }
 
 // MultiFeatureGates returns true if there are multiple feature gates.
@@ -99,6 +102,7 @@ func (c *codec) annotateEnum(e *api.Enum, model *api.API, full bool) error {
 		RelativeName:   relativeName,
 		NameInExamples: nameInExamples,
 		IsWktNullValue: nameInExamples == "wkt::NullValue",
+		Internal:       slices.Contains(c.internalTypes, e.ID),
 	}
 	e.Codec = annotations
 

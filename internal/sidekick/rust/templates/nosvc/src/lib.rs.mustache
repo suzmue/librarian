@@ -44,6 +44,11 @@ limitations under the License.
 #[allow(deprecated)]
 {{/HasDeprecatedEntities}}
 pub mod model;
+{{#Codec.HasInternalModules}}
+
+#[allow(dead_code, unused_imports, clippy::enum_variant_names)]
+pub(crate) mod internal_model;
+{{/Codec.HasInternalModules}}
 {{#Codec.ExtraModules}}
 pub mod {{{.}}};
 {{/Codec.ExtraModules}}

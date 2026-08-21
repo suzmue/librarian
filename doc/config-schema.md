@@ -517,6 +517,20 @@ This document describes the schema for the librarian.yaml.
 | :--- | :--- | :--- |
 | `wrapper_of` | list of string | Contains the API versions (e.g. "v1:0.29") of versioned libraries that this library wraps. |
 
+## RustAnyField Configuration
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `id` | string | Is the fully qualified field ID (e.g. ".google.logging.v2.LogEntry.proto_payload"). |
+| `types` | list of [RustAnyType](#rustanytype-configuration) | Is the list of supported concrete types for this Any field. |
+
+## RustAnyType Configuration
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `id` | string | Is the fully qualified message ID (e.g. ".google.cloud.audit.AuditLog"). |
+| `source_path` | string | Is the proto source path or directory for the type (e.g. "google/cloud/audit" or "google/cloud/audit/audit_log.proto"). |
+
 ## RustCrate Configuration
 
 | Field | Type | Description |
@@ -541,6 +555,7 @@ This document describes the schema for the librarian.yaml.
 | `post_process_protos` | string | Indicates whether to post-process protos. |
 | `documentation_overrides` | list of [RustDocumentationOverride](#rustdocumentationoverride-configuration) | Contains overrides for element documentation. |
 | `pagination_overrides` | list of [RustPaginationOverride](#rustpaginationoverride-configuration) | Contains overrides for pagination configuration. |
+| `any_fields` | list of [RustAnyField](#rustanyfield-configuration) | Contains configuration for Any fields and their supported concrete types for streaming RPCs. |
 | `name_overrides` | string | Contains codec-level overrides for type and service names. |
 | `discovery` | RustDiscovery (optional) | Contains discovery-specific configuration for LRO polling. |
 | `quickstart_service_override` | string | Overrides the default heuristically selected service for the package-level quickstart. |
@@ -594,6 +609,7 @@ This document describes the schema for the librarian.yaml.
 | `service_config` | string | Is the path to the service config file. |
 | `skipped_ids` | list of string | Is a list of proto IDs to skip in generation. |
 | `specification_format` | string | Overrides the library-level specification format. |
+| `any_fields` | list of [RustAnyField](#rustanyfield-configuration) | Contains configuration for Any fields and their supported concrete types for streaming RPCs. |
 | `api_path` | string | Is the proto path to generate from (e.g., "google/storage/v2"). |
 | `template` | string | Specifies which generator template to use. Valid values: "grpc-client", "http-client", "prost", "convert-prost", "mod", "storage". |
 

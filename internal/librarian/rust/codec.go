@@ -89,6 +89,9 @@ func libraryToModelConfig(library *config.Library, ch *config.API, srcs *sources
 				}
 			}
 		}
+		if len(library.Rust.AnyFields) > 0 {
+			modelCfg.AnyFields = library.Rust.AnyFields
+		}
 		if library.Rust.Discovery != nil {
 			pollers := make([]*api.Poller, len(library.Rust.Discovery.Pollers))
 			for i, poller := range library.Rust.Discovery.Pollers {
@@ -296,6 +299,11 @@ func moduleToModelConfig(library *config.Library, module *config.RustModule, src
 				ItemField: override.ItemField,
 			}
 		}
+	}
+	if len(module.AnyFields) > 0 {
+		modelCfg.AnyFields = module.AnyFields
+	} else if library.Rust != nil && len(library.Rust.AnyFields) > 0 {
+		modelCfg.AnyFields = library.Rust.AnyFields
 	}
 	return modelCfg, nil
 }

@@ -16,6 +16,7 @@ package rust
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/googleapis/librarian/internal/sidekick/api"
@@ -52,6 +53,8 @@ type oneOfAnnotation struct {
 	// If set, this enum is only enabled when some features are enabled.
 	FeatureGates   []string
 	FeatureGatesOp string
+	// If true, this oneof's visibility should only be `pub(crate)`
+	Internal bool
 }
 
 // MultiFeatureGates returns true if there are multiple feature gates.
@@ -92,6 +95,7 @@ func (c *codec) annotateOneOf(oneof *api.OneOf, message *api.Message, model *api
 		NameInExamples:      nameInExamples,
 		FieldType:           fmt.Sprintf("%s::%s", scope, enumName),
 		DocLines:            docLines,
+		Internal:            slices.Contains(c.internalTypes, message.ID),
 	}
 	// Note that this is different from OneOf name-overrides
 	// as those solve for fully qualified name clashes where a oneof
