@@ -281,14 +281,14 @@ func TestGenerateServerStreaming(t *testing.T) {
             .execute_server_streaming::<
                 crate::model::ExpandRequest,
                 crate::model::EchoResponse,
-                crate::prost::test::v1::ExpandRequest,
-                crate::prost::test::v1::EchoResponse,
+                super::prost::test::v1::ExpandRequest,
+                super::prost::test::v1::EchoResponse,
             >(
                 extensions,
                 path,
                 req,
                 options,
-                &crate::info::X_GOOG_API_CLIENT_GRPC_HEADER,
+                &super::info::X_GOOG_API_CLIENT_GRPC_HEADER,
                 &x_goog_request_params,
             )
             .await

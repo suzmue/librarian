@@ -134,10 +134,16 @@ func generateVeneer(ctx context.Context, pc *config.Protoc, library *config.Libr
 	}
 	for _, module := range library.Rust.Modules {
 		if module.Template == "storage" {
-			return generateRustStorage(ctx, pc, library, module.Output, sources)
+			if err := generateRustStorage(ctx, pc, library, module.Output, sources); err != nil {
+				return err
+			}
+			continue
 		}
 		if module.Template == "bigquery" {
-			return generateRustBigQuery(ctx, pc, library, module.Output, sources)
+			if err := generateRustBigQuery(ctx, pc, library, module.Output, sources); err != nil {
+				return err
+			}
+			continue
 		}
 		modelConfig, err := moduleToModelConfig(library, module, sources, pc)
 		if err != nil {
@@ -148,12 +154,18 @@ func generateVeneer(ctx context.Context, pc *config.Protoc, library *config.Libr
 			return fmt.Errorf("CreateModel %q: %w", module.Output, err)
 		}
 		if module.Template == "prost" || module.Template == "tonic" {
-			err = rust_prost.Generate(ctx, model, module.Output, module.Template, modelConfig)
+			if err := rust_prost.Generate(ctx, model, module.Output, module.Template, modelConfig); err != nil {
+				return fmt.Errorf("module %q: %w", module.Output, err)
+			}
 		} else {
-			err = sidekickrust.Generate(ctx, model, module.Output, modelConfig)
-		}
-		if err != nil {
-			return fmt.Errorf("module %q: %w", module.Output, err)
+			if err := sidekickrust.Generate(ctx, model, module.Output, modelConfig); err != nil {
+				return fmt.Errorf("module %q: %w", module.Output, err)
+			}
+			if rootTypeIDs := sidekickrust.GrpcRootTypeIDs(model); len(rootTypeIDs) > 0 {
+				if err := generateProstHybrid(ctx, model, rootTypeIDs, library, module.Output, modelConfig); err != nil {
+					return fmt.Errorf("generateProstHybrid %q: %w", module.Output, err)
+				}
+			}
 		}
 	}
 	return nil

@@ -359,11 +359,11 @@ func TestGenerateConvertAcronyms(t *testing.T) {
 		},
 		{
 			name:  "external message with acronym ToProto",
-			start: "impl gaxi::prost::ToProto<crate::prost::google::r#type::DnsConfig>",
+			start: "impl gaxi::prost::ToProto<super::prost::google::r#type::DnsConfig>",
 			end:   "\n        })\n    }\n}",
-			wantBlock: `impl gaxi::prost::ToProto<crate::prost::google::r#type::DnsConfig> for google_cloud_type::model::DNSConfig {
-    type Output = crate::prost::google::r#type::DnsConfig;
-    fn to_proto(self) -> std::result::Result<crate::prost::google::r#type::DnsConfig, gaxi::prost::ConvertError> {
+			wantBlock: `impl gaxi::prost::ToProto<super::prost::google::r#type::DnsConfig> for google_cloud_type::model::DNSConfig {
+    type Output = super::prost::google::r#type::DnsConfig;
+    fn to_proto(self) -> std::result::Result<super::prost::google::r#type::DnsConfig, gaxi::prost::ConvertError> {
         Ok(Self::Output {
         })
     }

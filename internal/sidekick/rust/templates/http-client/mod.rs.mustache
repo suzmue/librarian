@@ -48,3 +48,50 @@ pub(crate) mod tracing;
 
 #[doc(hidden)]
 pub(crate) mod transport;
+
+{{#Codec.HasGrpc}}
+#[doc(hidden)]
+#[allow(clippy::all)]
+#[allow(unused_imports)]
+#[allow(dead_code)]
+#[allow(missing_docs)]
+pub mod prost {
+    include!("prost/includes.rs");
+}
+
+#[doc(hidden)]
+#[allow(clippy::all)]
+#[allow(unused_imports)]
+#[allow(dead_code)]
+#[allow(missing_docs)]
+pub(crate) mod convert;
+{{/Codec.HasGrpc}}
+
+pub(crate) const DEFAULT_HOST: &str = "https://{{Codec.DefaultHost}}/";
+
+pub(crate) mod info {
+    const NAME: &str = env!("CARGO_PKG_NAME");
+    const VERSION: &str = env!("CARGO_PKG_VERSION");
+    {{#Codec.HasHttp}}
+    pub(crate) static X_GOOG_API_CLIENT_HEADER: std::sync::LazyLock<String> =
+        std::sync::LazyLock::new(|| {
+            let ac = gaxi::api_header::XGoogApiClient {
+                name: NAME,
+                version: VERSION,
+                library_type: gaxi::api_header::GAPIC,
+            };
+            ac.rest_header_value()
+        });
+    {{/Codec.HasHttp}}
+    {{#Codec.HasGrpc}}
+    pub(crate) static X_GOOG_API_CLIENT_GRPC_HEADER: std::sync::LazyLock<String> =
+        std::sync::LazyLock::new(|| {
+            let ac = gaxi::api_header::XGoogApiClient {
+                name: NAME,
+                version: VERSION,
+                library_type: gaxi::api_header::GAPIC,
+            };
+            ac.grpc_header_value()
+        });
+    {{/Codec.HasGrpc}}
+}

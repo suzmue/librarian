@@ -393,6 +393,7 @@ func TestPackageNames(t *testing.T) {
 	}
 	want := &modelAnnotations{
 		PackageName:               "google-cloud-workflows-v1",
+		PackageModuleName:         "google::cloud::workflows::v1",
 		PackageVersion:            "1.2.3",
 		ReleaseLevel:              "stable",
 		PackageNamespace:          "google_cloud_workflows_v1",
@@ -925,7 +926,7 @@ func TestExternalTypesAnnotations(t *testing.T) {
 	if want := "google_cloud_type::model::LatLng"; msgAnn.RelativeName != want {
 		t.Errorf("msgAnn.RelativeName = %q, want %q", msgAnn.RelativeName, want)
 	}
-	if want := "crate::prost::google::r#type::LatLng"; msgAnn.ProstRelativeName != want {
+	if want := "super::prost::google::r#type::LatLng"; msgAnn.ProstRelativeName != want {
 		t.Errorf("msgAnn.ProstRelativeName = %q, want %q", msgAnn.ProstRelativeName, want)
 	}
 
@@ -936,7 +937,7 @@ func TestExternalTypesAnnotations(t *testing.T) {
 	if want := "google_cloud_type::model::DayOfWeek"; enumAnn.RelativeName != want {
 		t.Errorf("enumAnn.RelativeName = %q, want %q", enumAnn.RelativeName, want)
 	}
-	if want := "crate::prost::google::r#type::DayOfWeek"; enumAnn.ProstRelativeName != want {
+	if want := "super::prost::google::r#type::DayOfWeek"; enumAnn.ProstRelativeName != want {
 		t.Errorf("enumAnn.ProstRelativeName = %q, want %q", enumAnn.ProstRelativeName, want)
 	}
 }

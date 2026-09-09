@@ -1637,7 +1637,7 @@ func (c *codec) generateMethod(m *api.Method) bool {
 }
 
 func (c *codec) templateSupportsGrpc() bool {
-	return c.templateOverride == "" || c.templateOverride == "templates/grpc-client"
+	return c.templateOverride == "" || c.templateOverride == "templates/grpc-client" || c.templateOverride == "templates/http-client"
 }
 
 func (c *codec) hasBidiStreaming(model *api.API) bool {

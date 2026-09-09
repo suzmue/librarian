@@ -47,6 +47,7 @@ const (
 
 type modelAnnotations struct {
 	PackageName                string
+	PackageModuleName          string
 	PackageVersion             string
 	ReleaseLevel               string
 	PackageNamespace           string
@@ -275,15 +276,15 @@ func annotateModel(model *api.API, codec *codec) (*modelAnnotations, error) {
 	// ExternalEnums (e.g. google.type.Date) and ExternalMessages (e.g. google.api.HttpBody)
 	// are populated for convert-prost generation in hybrid crates.
 	// Override ProstRelativeName after all method annotations so ToProto and FromProto
-	// resolve to crate::prost::<pkg>::<TypeName>.
+	// resolve to super::prost::<pkg>::<TypeName>.
 	for _, e := range model.ExternalEnums {
 		if ann, ok := e.Codec.(*enumAnnotation); ok {
-			ann.ProstRelativeName = "crate::prost::" + packageToModuleName(e.Package) + "::" + prostEnumRelativePath(e)
+			ann.ProstRelativeName = "super::prost::" + packageToModuleName(e.Package) + "::" + prostEnumRelativePath(e)
 		}
 	}
 	for _, m := range model.ExternalMessages {
 		if ann, ok := m.Codec.(*messageAnnotation); ok {
-			ann.ProstRelativeName = "crate::prost::" + packageToModuleName(m.Package) + "::" + prostMessageRelativePath(m)
+			ann.ProstRelativeName = "super::prost::" + packageToModuleName(m.Package) + "::" + prostMessageRelativePath(m)
 		}
 	}
 
@@ -358,6 +359,7 @@ func annotateModel(model *api.API, codec *codec) (*modelAnnotations, error) {
 
 	ann := &modelAnnotations{
 		PackageName:                codec.packageName(model),
+		PackageModuleName:          packageToModuleName(model.PackageName),
 		PackageNamespace:           codec.rootModuleName(model),
 		PackageVersion:             codec.version,
 		ReleaseLevel:               codec.releaseLevel,

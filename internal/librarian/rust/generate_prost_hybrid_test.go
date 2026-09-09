@@ -42,6 +42,7 @@ func TestGenerateProstHybrid(t *testing.T) {
 		name             string
 		rootTypeIDs      []string
 		templateOverride string
+		isModule         bool
 		wantProstDir     bool
 	}{
 		{
@@ -60,13 +61,24 @@ func TestGenerateProstHybrid(t *testing.T) {
 			rootTypeIDs:  []string{msg.ID},
 			wantProstDir: true,
 		},
+		{
+			name:         "submodule creates prost dir and convert.rs in module outdir",
+			rootTypeIDs:  []string{msg.ID},
+			isModule:     true,
+			wantProstDir: true,
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			outDir := t.TempDir()
+			var modules []*config.RustModule
+			if test.isModule {
+				modules = []*config.RustModule{{Output: outDir}}
+			}
 			lib := &config.Library{
 				Name: "test-package",
 				Rust: &config.RustCrate{
 					TemplateOverride: test.templateOverride,
+					Modules:          modules,
 				},
 			}
 			absSpecSource, err := filepath.Abs("../../testdata/googleapis/google/type")
@@ -90,13 +102,17 @@ func TestGenerateProstHybrid(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			prostDir := filepath.Join(outDir, "src", "prost")
+			convertFile := filepath.Join(outDir, "src", "convert.rs")
+			if test.isModule {
+				prostDir = filepath.Join(outDir, "prost")
+				convertFile = filepath.Join(outDir, "convert.rs")
+			}
 			_, err = os.Stat(prostDir)
 			exists := err == nil
 			if exists != test.wantProstDir {
 				t.Errorf("prostDir exists = %v, want %v", exists, test.wantProstDir)
 			}
 
-			convertFile := filepath.Join(outDir, "src", "convert.rs")
 			_, err = os.Stat(convertFile)
 			exists = err == nil
 			if exists != test.wantProstDir {

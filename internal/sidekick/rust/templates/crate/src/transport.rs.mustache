@@ -41,7 +41,7 @@ pub struct {{Codec.Name}} {
     inner: gaxi::http::ReqwestClient,
     {{/Codec.HasHttp}}
     {{#Codec.HasGrpc}}
-    grpc_inner: gaxi::grpc::Client,
+    {{#Codec.ExtendGrpcTransport}}pub(crate) {{/Codec.ExtendGrpcTransport}}grpc_inner: gaxi::grpc::Client,
     {{/Codec.HasGrpc}}
 }
 
@@ -69,7 +69,7 @@ impl {{Codec.Name}} {
         {{#Codec.DetailedTracingAttributes}}
         let tracing_is_enabled = gaxi::options::tracing_enabled(&config);
         {{#Codec.HasHttp}}
-        let inner = gaxi::http::ReqwestClient::new(config{{#Codec.HasGrpc}}.clone(){{/Codec.HasGrpc}}, crate::DEFAULT_HOST).await?;
+        let inner = gaxi::http::ReqwestClient::new(config{{#Codec.HasGrpc}}.clone(){{/Codec.HasGrpc}}, super::DEFAULT_HOST).await?;
         let inner = if tracing_is_enabled {
             inner.with_instrumentation(&super::tracing::info::INSTRUMENTATION_CLIENT_INFO)
         } else {
@@ -79,7 +79,7 @@ impl {{Codec.Name}} {
         {{/Codec.DetailedTracingAttributes}}
         {{^Codec.DetailedTracingAttributes}}
         {{#Codec.HasHttp}}
-        let inner = gaxi::http::ReqwestClient::new(config{{#Codec.HasGrpc}}.clone(){{/Codec.HasGrpc}}, crate::DEFAULT_HOST).await?;
+        let inner = gaxi::http::ReqwestClient::new(config{{#Codec.HasGrpc}}.clone(){{/Codec.HasGrpc}}, super::DEFAULT_HOST).await?;
         {{/Codec.HasHttp}}
         {{/Codec.DetailedTracingAttributes}}
         {{#Codec.HasGrpc}}
@@ -87,16 +87,16 @@ impl {{Codec.Name}} {
         let grpc_inner = if tracing_is_enabled {
             gaxi::grpc::Client::new_with_instrumentation(
                 config,
-                crate::DEFAULT_HOST,
+                super::DEFAULT_HOST,
                 &super::tracing::info::INSTRUMENTATION_CLIENT_INFO,
             )
             .await?
         } else {
-            gaxi::grpc::Client::new(config, crate::DEFAULT_HOST).await?
+            gaxi::grpc::Client::new(config, super::DEFAULT_HOST).await?
         };
         {{/Codec.DetailedTracingAttributes}}
         {{^Codec.DetailedTracingAttributes}}
-        let grpc_inner = gaxi::grpc::Client::new(config, crate::DEFAULT_HOST).await?;
+        let grpc_inner = gaxi::grpc::Client::new(config, super::DEFAULT_HOST).await?;
         {{/Codec.DetailedTracingAttributes}}
         {{/Codec.HasGrpc}}
         {{#Codec.IsPureHttp}}
@@ -147,13 +147,13 @@ impl super::stub::{{Codec.Name}} for {{Codec.Name}} {
             .execute_bidi_streaming::<
                 {{InputType.Codec.QualifiedName}},
                 {{OutputType.Codec.QualifiedName}},
-                crate::prost::{{InputType.Codec.PackageModuleName}}::{{InputType.Codec.ProstRelativeName}},
-                crate::prost::{{OutputType.Codec.PackageModuleName}}::{{OutputType.Codec.ProstRelativeName}},
+                super::prost::{{InputType.Codec.PackageModuleName}}::{{InputType.Codec.ProstRelativeName}},
+                super::prost::{{OutputType.Codec.PackageModuleName}}::{{OutputType.Codec.ProstRelativeName}},
             >(
                 extensions,
                 path,
                 options,
-                &crate::info::X_GOOG_API_CLIENT_GRPC_HEADER,
+                &super::info::X_GOOG_API_CLIENT_GRPC_HEADER,
                 x_goog_request_params,
             )
     }
@@ -208,14 +208,14 @@ impl super::stub::{{Codec.Name}} for {{Codec.Name}} {
             .execute_server_streaming::<
                 {{InputType.Codec.QualifiedName}},
                 {{OutputType.Codec.QualifiedName}},
-                crate::prost::{{InputType.Codec.PackageModuleName}}::{{InputType.Codec.ProstRelativeName}},
-                crate::prost::{{OutputType.Codec.PackageModuleName}}::{{OutputType.Codec.ProstRelativeName}},
+                super::prost::{{InputType.Codec.PackageModuleName}}::{{InputType.Codec.ProstRelativeName}},
+                super::prost::{{OutputType.Codec.PackageModuleName}}::{{OutputType.Codec.ProstRelativeName}},
             >(
                 extensions,
                 path,
                 req,
                 options,
-                &crate::info::X_GOOG_API_CLIENT_GRPC_HEADER,
+                &super::info::X_GOOG_API_CLIENT_GRPC_HEADER,
                 &x_goog_request_params,
             )
             .await
@@ -284,7 +284,7 @@ impl super::stub::{{Codec.Name}} for {{Codec.Name}} {
         type TR = ();
         {{/ReturnsEmpty}}
         {{^ReturnsEmpty}}
-        type TR = crate::prost::{{OutputType.Codec.PackageModuleName}}::{{OutputType.Codec.ProstRelativeName}};
+        type TR = super::prost::{{OutputType.Codec.PackageModuleName}}::{{OutputType.Codec.ProstRelativeName}};
         {{/ReturnsEmpty}}
         {{#Codec.DetailedTracingAttributes}}
         if let Some(recorder) = gaxi::observability::RequestRecorder::current() {
@@ -319,7 +319,7 @@ impl super::stub::{{Codec.Name}} for {{Codec.Name}} {
                 path,
                 req.to_proto().map_err(Error::deser)?,
                 options,
-                &crate::info::X_GOOG_API_CLIENT_GRPC_HEADER,
+                &super::info::X_GOOG_API_CLIENT_GRPC_HEADER,
                 &x_goog_request_params,
             )
             .await
@@ -479,7 +479,7 @@ impl super::stub::{{Codec.Name}} for {{Codec.Name}} {
                 {{#Codec.SystemParameters}}
                 .query(&[("{{Name}}", "{{Value}}")])
                 {{/Codec.SystemParameters}}
-                .header("x-goog-api-client", HeaderValue::from_static(&crate::info::X_GOOG_API_CLIENT_HEADER));
+                .header("x-goog-api-client", HeaderValue::from_static(&super::info::X_GOOG_API_CLIENT_HEADER));
         let body = gaxi::http::handle_empty({{{Codec.Body}}}, &method);
         self.inner.execute(
             builder,

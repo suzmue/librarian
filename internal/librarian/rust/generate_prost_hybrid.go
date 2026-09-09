@@ -33,7 +33,10 @@ import (
 )
 
 func generateProstHybrid(ctx context.Context, model *api.API, rootTypeIDs []string, library *config.Library, outdir string, modelConfig *parser.ModelConfig) error {
-	if library.Rust == nil || library.Rust.TemplateOverride != "" || len(rootTypeIDs) == 0 {
+	if library.Rust == nil || len(rootTypeIDs) == 0 {
+		return nil
+	}
+	if len(library.Rust.Modules) == 0 && library.Rust.TemplateOverride != "" {
 		return nil
 	}
 
@@ -52,7 +55,15 @@ func generateProstHybrid(ctx context.Context, model *api.API, rootTypeIDs []stri
 	if len(unusedTypes) > 0 {
 		hybridConfig.Codec["unused-types"] = strings.Join(unusedTypes, "\n")
 	}
-	prostOutDir := filepath.Join(outdir, "src", "prost")
+
+	isModule := len(library.Rust.Modules) > 0
+	prostOutDir := filepath.Join(outdir, "prost")
+	convertOutDir := outdir
+	if !isModule {
+		prostOutDir = filepath.Join(outdir, "src", "prost")
+		convertOutDir = filepath.Join(outdir, "src")
+	}
+
 	if err := rust_prost.Generate(ctx, hybridModel, prostOutDir, "prost", &hybridConfig); err != nil {
 		return fmt.Errorf("generating prost module: %w", err)
 	}
@@ -63,7 +74,6 @@ func generateProstHybrid(ctx context.Context, model *api.API, rootTypeIDs []stri
 		convertModelCfg.Codec["include-rpc-status-conversion"] = "true"
 	}
 	convertModelCfg.Codec["template-override"] = "templates/convert-prost"
-	convertOutDir := filepath.Join(outdir, "src")
 	if err := sidekickrust.Generate(ctx, hybridModel, convertOutDir, &convertModelCfg); err != nil {
 		return fmt.Errorf("generating convert.rs: %w", err)
 	}

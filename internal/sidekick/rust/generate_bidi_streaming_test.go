@@ -274,13 +274,13 @@ func TestGenerateBidiStreaming(t *testing.T) {
             .execute_bidi_streaming::<
                 crate::model::Request,
                 crate::model::Response,
-                crate::prost::test::v1::Request,
-                crate::prost::test::v1::Response,
+                super::prost::test::v1::Request,
+                super::prost::test::v1::Response,
             >(
                 extensions,
                 path,
                 options,
-                &crate::info::X_GOOG_API_CLIENT_GRPC_HEADER,
+                &super::info::X_GOOG_API_CLIENT_GRPC_HEADER,
                 x_goog_request_params,
             )
     }`,
