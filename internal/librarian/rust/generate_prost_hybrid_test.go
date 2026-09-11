@@ -43,6 +43,7 @@ func TestGenerateProstHybrid(t *testing.T) {
 		rootTypeIDs      []string
 		templateOverride string
 		wantProstDir     bool
+		isModule         bool
 	}{
 		{
 			name:         "empty rootTypeIDs does not create prost dir",
@@ -59,6 +60,13 @@ func TestGenerateProstHybrid(t *testing.T) {
 			name:         "valid rootTypeIDs creates prost dir",
 			rootTypeIDs:  []string{msg.ID},
 			wantProstDir: true,
+		},
+		{
+			name:             "module template http-client creates prost dir in module root",
+			rootTypeIDs:      []string{msg.ID},
+			templateOverride: "templates/http-client",
+			wantProstDir:     true,
+			isModule:         true,
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -85,18 +93,27 @@ func TestGenerateProstHybrid(t *testing.T) {
 					"package:g3-wkt":        "package=google-cloud-wkt,source=google.protobuf",
 				},
 			}
+			if test.templateOverride != "" {
+				modelConfig.Codec["template-override"] = test.templateOverride
+			}
 			err = generateProstHybrid(t.Context(), model, test.rootTypeIDs, lib, outDir, modelConfig)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			prostDir := filepath.Join(outDir, "src", "prost")
+			var prostDir, convertFile string
+			if test.isModule {
+				prostDir = filepath.Join(outDir, "prost")
+				convertFile = filepath.Join(outDir, "convert.rs")
+			} else {
+				prostDir = filepath.Join(outDir, "src", "prost")
+				convertFile = filepath.Join(outDir, "src", "convert.rs")
+			}
 			_, err = os.Stat(prostDir)
 			exists := err == nil
 			if exists != test.wantProstDir {
 				t.Errorf("prostDir exists = %v, want %v", exists, test.wantProstDir)
 			}
 
-			convertFile := filepath.Join(outDir, "src", "convert.rs")
 			_, err = os.Stat(convertFile)
 			exists = err == nil
 			if exists != test.wantProstDir {

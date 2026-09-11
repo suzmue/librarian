@@ -48,3 +48,88 @@ pub(crate) mod tracing;
 
 #[doc(hidden)]
 pub(crate) mod transport;
+
+{{#Codec.HasGrpc}}
+{{#Codec.PerServiceFeatures}}
+#[cfg(any(
+{{#Codec.GrpcServices}}
+    feature = "{{Codec.FeatureName}}",
+{{/Codec.GrpcServices}}
+))]
+{{/Codec.PerServiceFeatures}}
+#[doc(hidden)]
+#[allow(clippy::all)]
+#[allow(unused_imports)]
+#[allow(dead_code)]
+#[allow(missing_docs)]
+pub(crate) mod prost {
+    include!("prost/includes.rs");
+}
+
+{{#Codec.PerServiceFeatures}}
+#[cfg(any(
+{{#Codec.GrpcServices}}
+    feature = "{{Codec.FeatureName}}",
+{{/Codec.GrpcServices}}
+))]
+{{/Codec.PerServiceFeatures}}
+#[doc(hidden)]
+#[allow(clippy::all)]
+#[allow(unused_imports)]
+#[allow(dead_code)]
+#[allow(missing_docs)]
+pub(crate) mod convert;
+{{/Codec.HasGrpc}}
+
+/// The default host used by the service.
+{{#Codec.PerServiceFeatures}}
+#[cfg(any({{#Codec.Services}}feature = "{{Codec.FeatureName}}",{{/Codec.Services}}))]
+{{/Codec.PerServiceFeatures}}
+const DEFAULT_HOST: &str = "https://{{Codec.DefaultHost}}/";
+
+{{#Codec.PerServiceFeatures}}
+#[cfg(any({{#Codec.Services}}feature = "{{Codec.FeatureName}}",{{/Codec.Services}}))]
+{{/Codec.PerServiceFeatures}}
+pub(crate) mod info {
+    const NAME: &str = env!("CARGO_PKG_NAME");
+    const VERSION: &str = env!("CARGO_PKG_VERSION");
+    {{#Codec.HasHttp}}
+    pub(crate) static X_GOOG_API_CLIENT_HEADER: std::sync::LazyLock<String> =
+        std::sync::LazyLock::new(|| {
+            let ac = gaxi::api_header::XGoogApiClient {
+                name: NAME,
+                version: VERSION,
+                library_type: gaxi::api_header::GAPIC,
+            };
+            ac.rest_header_value()
+        });
+    {{/Codec.HasHttp}}
+    {{#Codec.HasGrpc}}
+    pub(crate) static X_GOOG_API_CLIENT_GRPC_HEADER: std::sync::LazyLock<String> =
+        std::sync::LazyLock::new(|| {
+            let ac = gaxi::api_header::XGoogApiClient {
+                name: NAME,
+                version: VERSION,
+                library_type: gaxi::api_header::GAPIC,
+            };
+            ac.grpc_header_value()
+        });
+    {{/Codec.HasGrpc}}
+}
+
+// Define some shortcuts for imported crates.
+#[allow(unused_imports)]
+pub(crate) use google_cloud_gax::client_builder::ClientBuilder;
+#[allow(unused_imports)]
+pub(crate) use google_cloud_gax::client_builder::Result as ClientBuilderResult;
+#[allow(unused_imports)]
+pub(crate) use google_cloud_gax::client_builder::internal::ClientFactory;
+#[allow(unused_imports)]
+pub(crate) use google_cloud_gax::client_builder::internal::new_builder as new_client_builder;
+#[allow(unused_imports)]
+pub(crate) use google_cloud_gax::options::RequestOptions;
+#[allow(unused_imports)]
+pub(crate) use google_cloud_gax::options::internal::RequestBuilder;
+#[allow(unused_imports)]
+pub(crate) use google_cloud_gax::response::Response;
+

@@ -693,7 +693,7 @@ func TestMethodUsesGrpc(t *testing.T) {
 		{
 			name:             "template without grpc ignores streaming",
 			method:           bidiMethod,
-			templateOverride: "templates/http-client",
+			templateOverride: "templates/mod",
 			options:          map[string]string{},
 			want:             false,
 		},

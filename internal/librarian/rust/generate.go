@@ -155,6 +155,13 @@ func generateVeneer(ctx context.Context, pc *config.Protoc, library *config.Libr
 		if err != nil {
 			return fmt.Errorf("module %q: %w", module.Output, err)
 		}
+		if module.Template == "http-client" {
+			if rootTypeIDs := sidekickrust.GrpcRootTypeIDs(model); len(rootTypeIDs) > 0 {
+				if err := generateProstHybrid(ctx, model, rootTypeIDs, library, module.Output, modelConfig); err != nil {
+					return fmt.Errorf("module %q generateProstHybrid: %w", module.Output, err)
+				}
+			}
+		}
 	}
 	return nil
 }

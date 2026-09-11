@@ -359,7 +359,7 @@ func TestUsedByStreamingBidiDisabled(t *testing.T) {
 	}
 	model := api.NewTestAPI([]*api.Message{}, []*api.Enum{}, []*api.Service{service})
 	c, err := newCodec(libconfig.SpecProtobuf, map[string]string{
-		"template-override": "templates/http-client",
+		"template-override": "templates/mod",
 		"package:location":  "package=gcp-sdk-location,source=google.cloud.location",
 		"package:prost":     "used-if=streaming,package=prost",
 	})

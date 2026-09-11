@@ -180,6 +180,9 @@ func buildCodec(library *config.Library, releaseLevel string) map[string]string 
 	if rust.GrpcClient != "" {
 		codec["grpc-client"] = rust.GrpcClient
 	}
+	if rust.OneofFromConversions {
+		codec["oneof-from-conversions"] = "true"
+	}
 	return codec
 }
 
@@ -401,8 +404,18 @@ func buildModuleCodec(library *config.Library, module *config.RustModule) map[st
 	if module.DefaultTransport != "" {
 		defaultTransport = module.DefaultTransport
 	}
+	if module.DefaultUnaryTransport != "" {
+		defaultTransport = module.DefaultUnaryTransport
+	}
 	if defaultTransport != "" {
 		codec["default-transport"] = defaultTransport
+	}
+	oneofFromConversions := library.Rust != nil && library.Rust.OneofFromConversions
+	if module.OneofFromConversions != nil {
+		oneofFromConversions = *module.OneofFromConversions
+	}
+	if oneofFromConversions {
+		codec["oneof-from-conversions"] = "true"
 	}
 	return codec
 }

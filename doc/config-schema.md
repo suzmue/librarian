@@ -584,6 +584,7 @@ This document describes the schema for the librarian.yaml.
 | `allow_grpc_any_fields` | list of string | Is a list of protobuf field IDs with google.protobuf.Any permitted in gRPC/streaming RPCs (their fields will be dropped in prost conversion). |
 | `grpc_client` | string | Is the Rust type used for the inner gRPC client in generated transports. Defaults to "gaxi::grpc::Client". |
 | `default_transport` | string | Specifies the default transport protocol for unary methods ("grpc" or "http"). Defaults to "http". |
+| `oneof_from_conversions` | bool | Indicates whether to generate from_* constructor methods on oneof enums. |
 
 ## RustDocumentationOverride Configuration
 
@@ -626,6 +627,9 @@ This document describes the schema for the librarian.yaml.
 | `skipped_ids` | list of string | Is a list of proto IDs to skip in generation. |
 | `specification_format` | string | Overrides the library-level specification format. |
 | `api_path` | string | Is the proto path to generate from (e.g., "google/storage/v2"). |
+| `default_unary_transport` | string | Specifies the default transport for unary RPC methods ("http" or "grpc"). Defaults to "http". When set to "grpc", unary methods default to gRPC. |
+| `allow_streaming_any_types` | list of string | Is a list of protobuf field/message IDs with google.protobuf.Any permitted in streaming RPCs (their fields will be dropped in prost conversion). |
+| `oneof_from_conversions` | bool (optional) | Indicates whether to generate from_* constructor methods on oneof enums. |
 | `template` | string | Specifies which generator template to use. Valid values: "grpc-client", "http-client", "prost", "convert-prost", "mod", "storage". |
 
 ## RustPackageDependency Configuration

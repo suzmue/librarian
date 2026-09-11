@@ -169,6 +169,9 @@ type RustDefault struct {
 	// DefaultTransport specifies the default transport protocol for unary methods ("grpc" or "http").
 	// Defaults to "http".
 	DefaultTransport string `yaml:"default_transport,omitempty"`
+
+	// OneofFromConversions indicates whether to generate from_* constructor methods on oneof enums.
+	OneofFromConversions bool `yaml:"oneof_from_conversions,omitempty"`
 }
 
 // RustModule defines a generation target within a veneer crate.
@@ -271,6 +274,17 @@ type RustModule struct {
 
 	// APIPath is the proto path to generate from (e.g., "google/storage/v2").
 	APIPath string `yaml:"api_path"`
+
+	// DefaultUnaryTransport specifies the default transport for unary RPC methods ("http" or "grpc").
+	// Defaults to "http". When set to "grpc", unary methods default to gRPC.
+	DefaultUnaryTransport string `yaml:"default_unary_transport,omitempty"`
+
+	// AllowStreamingAnyTypes is a list of protobuf field/message IDs with google.protobuf.Any
+	// permitted in streaming RPCs (their fields will be dropped in prost conversion).
+	AllowStreamingAnyTypes []string `yaml:"allow_streaming_any_types,omitempty"`
+
+	// OneofFromConversions indicates whether to generate from_* constructor methods on oneof enums.
+	OneofFromConversions *bool `yaml:"oneof_from_conversions,omitempty"`
 
 	// Template specifies which generator template to use.
 	// Valid values: "grpc-client", "http-client", "prost", "convert-prost", "mod", "storage".

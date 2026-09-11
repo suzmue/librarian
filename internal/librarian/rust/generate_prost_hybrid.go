@@ -33,13 +33,42 @@ import (
 )
 
 func generateProstHybrid(ctx context.Context, model *api.API, rootTypeIDs []string, library *config.Library, outdir string, modelConfig *parser.ModelConfig) error {
-	if library.Rust == nil || library.Rust.TemplateOverride != "" || len(rootTypeIDs) == 0 {
+	if len(rootTypeIDs) == 0 {
+		return nil
+	}
+	templateOverride := ""
+	if library.Rust != nil {
+		templateOverride = library.Rust.TemplateOverride
+	}
+	if modelOverride, ok := modelConfig.Codec["template-override"]; ok {
+		templateOverride = modelOverride
+	}
+	if templateOverride != "" && templateOverride != "templates/http-client" {
 		return nil
 	}
 
-	hybridModel, unusedTypes, hasGoogleRpcStatus, err := filterModelToTypes(model, rootTypeIDs, library.Rust.AllowGrpcAnyFields)
+	var allowedAnyFields []string
+	if library.Rust != nil {
+		allowedAnyFields = append(allowedAnyFields, library.Rust.AllowGrpcAnyFields...)
+		for _, m := range library.Rust.Modules {
+			if m.Output == outdir && len(m.AllowStreamingAnyTypes) > 0 {
+				allowedAnyFields = append(allowedAnyFields, m.AllowStreamingAnyTypes...)
+				break
+			}
+		}
+	}
+	hybridModel, unusedTypes, hasGoogleRpcStatus, err := filterModelToTypes(model, rootTypeIDs, allowedAnyFields)
 	if err != nil {
 		return err
+	}
+
+	var prostOutDir, convertOutDir string
+	if templateOverride == "templates/http-client" {
+		prostOutDir = filepath.Join(outdir, "prost")
+		convertOutDir = outdir
+	} else {
+		prostOutDir = filepath.Join(outdir, "src", "prost")
+		convertOutDir = filepath.Join(outdir, "src")
 	}
 
 	hybridConfig := *modelConfig
@@ -51,7 +80,6 @@ func generateProstHybrid(ctx context.Context, model *api.API, rootTypeIDs []stri
 	if len(unusedTypes) > 0 {
 		hybridConfig.Codec["unused-types"] = strings.Join(unusedTypes, "\n")
 	}
-	prostOutDir := filepath.Join(outdir, "src", "prost")
 	if err := rust_prost.Generate(ctx, hybridModel, prostOutDir, "prost", &hybridConfig); err != nil {
 		return fmt.Errorf("generating prost module: %w", err)
 	}
@@ -63,7 +91,6 @@ func generateProstHybrid(ctx context.Context, model *api.API, rootTypeIDs []stri
 	}
 	convertModelCfg.Codec["template-override"] = "templates/convert-prost"
 	convertModelCfg.Codec["prost-path"] = "super::prost"
-	convertOutDir := filepath.Join(outdir, "src")
 	if err := sidekickrust.Generate(ctx, hybridModel, convertOutDir, &convertModelCfg); err != nil {
 		return fmt.Errorf("generating convert.rs: %w", err)
 	}

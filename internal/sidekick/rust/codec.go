@@ -209,14 +209,23 @@ func newCodec(specificationFormat string, options map[string]string) (*codec, er
 			codec.grpcClient = definition
 		case key == "prost-path":
 			codec.prostPath = definition
-		case key == "default-transport":
+		case key == "oneof-from-conversions":
+			value, err := strconv.ParseBool(definition)
+			if err != nil {
+				return nil, fmt.Errorf("cannot convert `oneof-from-conversions` value %q to boolean: %w", definition, err)
+			}
+			codec.oneofFromConversions = value
+		case key == "default-unary-transport" || key == "default-transport":
 			if definition != "grpc" && definition != "http" {
-				return nil, fmt.Errorf("invalid `default-transport` value %q, expected \"grpc\" or \"http\"", definition)
+				return nil, fmt.Errorf("invalid `%s` value %q, expected \"grpc\" or \"http\"", key, definition)
 			}
 			codec.defaultTransport = definition
 		default:
 			return nil, fmt.Errorf("unknown Rust codec option %q", key)
 		}
+	}
+	if _, ok := options["oneof-from-conversions"]; !ok && codec.templateOverride == "templates/grpc-client" {
+		codec.oneofFromConversions = true
 	}
 	return codec, nil
 }
@@ -364,6 +373,8 @@ type codec struct {
 	// This is an option, because we don't want to change all of the client
 	// libraries for a feature only needed in one library (at the moment).
 	extendGrpcTransport bool
+	// If true, generate from_* constructor methods on oneof enums.
+	oneofFromConversions bool
 	// If true, the generator will produce reference documentation samples for message fields setters.
 	generateSetterSamples bool
 	// If true, the generator will produce reference documentation samples for functions that correspond to RPCs.
@@ -1643,7 +1654,7 @@ func (c *codec) generateMethod(m *api.Method) bool {
 }
 
 func (c *codec) templateSupportsGrpc() bool {
-	return c.templateOverride == "" || c.templateOverride == "templates/grpc-client"
+	return c.templateOverride == "" || c.templateOverride == "templates/grpc-client" || c.templateOverride == "templates/http-client"
 }
 
 func (c *codec) hasBidiStreaming(model *api.API) bool {

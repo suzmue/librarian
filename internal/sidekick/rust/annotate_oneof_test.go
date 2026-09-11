@@ -278,3 +278,24 @@ func TestOneOfUnqualifiedConflictAnnotations(t *testing.T) {
 		t.Errorf("mismatch (-want +got):\n%s", diff)
 	}
 }
+
+func TestOneOfFromConversions(t *testing.T) {
+	singular := api.NewTestField("oneof_field").WithType(api.TypezString)
+	group := api.NewTestOneOf("thing").WithFields(singular)
+	message := api.NewTestMessage("Message").WithOneOfs(group)
+	model := api.NewTestAPI([]*api.Message{message}, []*api.Enum{}, []*api.Service{})
+	api.CrossReference(model)
+
+	codec := newTestCodec(t, "", "", map[string]string{
+		"oneof-from-conversions": "true",
+	})
+	annotateModel(model, codec)
+
+	ann, ok := group.Codec.(*oneOfAnnotation)
+	if !ok {
+		t.Fatalf("expected group.Codec to be *oneOfAnnotation, got %T", group.Codec)
+	}
+	if !ann.OneofFromConversions {
+		t.Errorf("expected OneofFromConversions to be true, got false")
+	}
+}
