@@ -79,17 +79,18 @@ func TestMapValueAnnotations(t *testing.T) {
 	uint64Value := api.NewTestMessage("UInt64Value").WithPackage("google.protobuf")
 	testMessage := api.NewTestMessage("Message").WithPackage("test")
 	for _, test := range []struct {
-		spec        string
-		typez       api.Typez
-		valueMsg    *api.Message
-		wantSerdeAs string
+		spec                     string
+		typez                    api.Typez
+		valueMsg                 *api.Message
+		wantSerdeAs              string
+		wantValueIsWktBytesValue bool
 	}{
 		{spec: libconfig.SpecProtobuf, typez: api.TypezString, wantSerdeAs: "serde_with::Same"},
 		{spec: libconfig.SpecDiscovery, typez: api.TypezString, wantSerdeAs: "serde_with::Same"},
 		{spec: libconfig.SpecProtobuf, typez: api.TypezBytes, wantSerdeAs: "serde_with::base64::Base64"},
 		{spec: libconfig.SpecDiscovery, typez: api.TypezBytes, wantSerdeAs: "serde_with::base64::Base64<serde_with::base64::UrlSafe>"},
-		{spec: libconfig.SpecProtobuf, valueMsg: bytesValue, wantSerdeAs: "serde_with::base64::Base64"},
-		{spec: libconfig.SpecDiscovery, valueMsg: bytesValue, wantSerdeAs: "serde_with::base64::Base64<serde_with::base64::UrlSafe>"},
+		{spec: libconfig.SpecProtobuf, valueMsg: bytesValue, wantSerdeAs: "serde_with::base64::Base64", wantValueIsWktBytesValue: true},
+		{spec: libconfig.SpecDiscovery, valueMsg: bytesValue, wantSerdeAs: "serde_with::base64::Base64<serde_with::base64::UrlSafe>", wantValueIsWktBytesValue: true},
 
 		{spec: libconfig.SpecProtobuf, typez: api.TypezBool, wantSerdeAs: "serde_with::Same"},
 		{spec: libconfig.SpecProtobuf, typez: api.TypezInt32, wantSerdeAs: "wkt::internal::I32"},
@@ -142,6 +143,9 @@ func TestMapValueAnnotations(t *testing.T) {
 			want := fmt.Sprintf("std::collections::HashMap<wkt::internal::I32, %s>", test.wantSerdeAs)
 			if got != want {
 				t.Errorf("mismatch for %v, want=%q, got=%q", test, want, got)
+			}
+			if got, want := field.Codec.(*fieldAnnotations).ValueIsWktBytesValue, test.wantValueIsWktBytesValue; got != want {
+				t.Errorf("mismatch in ValueIsWktBytesValue for %v, want=%v, got=%v", test, want, got)
 			}
 		})
 	}

@@ -570,18 +570,19 @@ func TestBytesAnnotations(t *testing.T) {
 
 func TestWrapperFieldAnnotations(t *testing.T) {
 	for _, test := range []struct {
-		wantType    string
-		wantSerdeAs string
-		name        string
+		wantType            string
+		wantSerdeAs         string
+		wantIsWktBytesValue bool
+		name                string
 	}{
-		{"wkt::BytesValue", "serde_with::base64::Base64", "BytesValue"},
-		{"wkt::UInt64Value", "wkt::internal::U64", "UInt64Value"},
-		{"wkt::Int64Value", "wkt::internal::I64", "Int64Value"},
-		{"wkt::UInt32Value", "wkt::internal::U32", "UInt32Value"},
-		{"wkt::Int32Value", "wkt::internal::I32", "Int32Value"},
-		{"wkt::FloatValue", "wkt::internal::F32", "FloatValue"},
-		{"wkt::DoubleValue", "wkt::internal::F64", "DoubleValue"},
-		{"wkt::BoolValue", "", "BoolValue"},
+		{"wkt::BytesValue", "serde_with::base64::Base64", true, "BytesValue"},
+		{"wkt::UInt64Value", "wkt::internal::U64", false, "UInt64Value"},
+		{"wkt::Int64Value", "wkt::internal::I64", false, "Int64Value"},
+		{"wkt::UInt32Value", "wkt::internal::U32", false, "UInt32Value"},
+		{"wkt::Int32Value", "wkt::internal::I32", false, "Int32Value"},
+		{"wkt::FloatValue", "wkt::internal::F32", false, "FloatValue"},
+		{"wkt::DoubleValue", "wkt::internal::F64", false, "DoubleValue"},
+		{"wkt::BoolValue", "", false, "BoolValue"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			wkt := api.NewTestMessage(test.name).WithPackage("google.protobuf")
@@ -607,6 +608,7 @@ func TestWrapperFieldAnnotations(t *testing.T) {
 				PrimitiveFieldType: test.wantType,
 				SerdeAs:            test.wantSerdeAs,
 				SkipIfIsDefault:    true,
+				IsWktBytesValue:    test.wantIsWktBytesValue,
 			}
 			if diff := cmp.Diff(wantField, singularField.Codec, cmpopts.IgnoreFields(fieldAnnotations{}, "AddQueryParameter", "MessageType")); diff != "" {
 				t.Errorf("mismatch (-want +got):\n%s", diff)

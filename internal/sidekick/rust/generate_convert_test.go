@@ -120,6 +120,64 @@ impl gaxi::prost::FromProto<crate::model::MessageWithSkippedAny> for MessageWith
     }
 }`,
 		},
+		{
+			name: "message with optional bytes value field",
+			makeMessage: func() (*api.Message, []string) {
+				bytesValue := api.NewTestMessage("BytesValue").WithID(api.WktBytesValueID)
+				msg := api.NewTestMessage("MessageWithBytesValue").WithPackage("test.v1").WithFields(
+					api.NewTestField("qualifier_encoded").WithMessageType(bytesValue).WithOptional(),
+				)
+				return msg, nil
+			},
+			want: `impl gaxi::prost::ToProto<MessageWithBytesValue> for crate::model::MessageWithBytesValue {
+    type Output = MessageWithBytesValue;
+    fn to_proto(self) -> std::result::Result<MessageWithBytesValue, gaxi::prost::ConvertError> {
+        Ok(Self::Output {
+            qualifier_encoded: self.qualifier_encoded.map(|v| v.to_proto().map(std::vec::Vec::from)).transpose()?,
+        })
+    }
+}
+
+impl gaxi::prost::FromProto<crate::model::MessageWithBytesValue> for MessageWithBytesValue {
+    fn cnv(self) -> std::result::Result<crate::model::MessageWithBytesValue, gaxi::prost::ConvertError> {
+        Ok(
+            crate::model::MessageWithBytesValue::new()
+                .set_or_clear_qualifier_encoded(self.qualifier_encoded.map(|v| ::prost::bytes::Bytes::from(v).cnv()).transpose()?)
+        )
+    }
+}`,
+		},
+		{
+			name: "message with repeated bytes value field",
+			makeMessage: func() (*api.Message, []string) {
+				bytesValue := api.NewTestMessage("BytesValue").WithID(api.WktBytesValueID)
+				msg := api.NewTestMessage("MessageWithRepeatedBytesValue").WithPackage("test.v1").WithFields(
+					api.NewTestField("values").WithMessageType(bytesValue).WithRepeated(),
+				)
+				return msg, nil
+			},
+			want: `impl gaxi::prost::ToProto<MessageWithRepeatedBytesValue> for crate::model::MessageWithRepeatedBytesValue {
+    type Output = MessageWithRepeatedBytesValue;
+    fn to_proto(self) -> std::result::Result<MessageWithRepeatedBytesValue, gaxi::prost::ConvertError> {
+        Ok(Self::Output {
+            values: self.values
+                .into_iter()
+                .map(|v| v.to_proto().map(std::vec::Vec::from))
+                .collect::<std::result::Result<std::vec::Vec<_>, _>>()?,
+        })
+    }
+}
+
+impl gaxi::prost::FromProto<crate::model::MessageWithRepeatedBytesValue> for MessageWithRepeatedBytesValue {
+    fn cnv(self) -> std::result::Result<crate::model::MessageWithRepeatedBytesValue, gaxi::prost::ConvertError> {
+        Ok(
+            crate::model::MessageWithRepeatedBytesValue::new()
+                .set_values(self.values.into_iter().map(|v| ::prost::bytes::Bytes::from(v).cnv())
+                    .collect::<std::result::Result<std::vec::Vec<_>, _>>()?)
+        )
+    }
+}`,
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			message, skippedIDs := test.makeMessage()
@@ -525,4 +583,125 @@ func TestGenerateConvertOneOf_ReservedRawIdentifiers(t *testing.T) {
 			t.Errorf("mismatch (-want +got):\n%s", diff)
 		}
 	})
+}
+
+func TestGenerateConvertOneOf_BytesValue(t *testing.T) {
+	bytesValue := api.NewTestMessage("BytesValue").WithID(api.WktBytesValueID)
+	msg := api.NewTestMessage("Filter").WithOneOfs(
+		api.NewTestOneOf("value").WithFields(
+			api.NewTestField("encoded").WithMessageType(bytesValue),
+			api.NewTestField("name").WithType(api.TypezString),
+		),
+	)
+	outDir := t.TempDir()
+	model := api.NewTestAPI([]*api.Message{msg}, nil, nil)
+	if err := api.CrossReference(model); err != nil {
+		t.Fatal(err)
+	}
+	cfg := &parser.ModelConfig{
+		SpecificationFormat: libconfig.SpecProtobuf,
+		Codec: map[string]string{
+			"package:wkt":       "source=google.protobuf,package=google-cloud-wkt",
+			"template-override": "templates/convert-prost",
+		},
+	}
+	if err := Generate(t.Context(), model, outDir, cfg); err != nil {
+		t.Fatal(err)
+	}
+	contents, err := os.ReadFile(filepath.Join(outDir, "convert.rs"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	contentStr := string(contents)
+
+	wantToProto := `impl gaxi::prost::ToProto<filter::Value> for crate::model::filter::Value {
+    type Output = filter::Value;
+    fn to_proto(self) -> std::result::Result<Self::Output, gaxi::prost::ConvertError> {
+        match self {
+            Self::Encoded(v) => Ok(Self::Output::Encoded((*v).to_proto().map(std::vec::Vec::from)?)),
+            Self::Name(v) => Ok(Self::Output::Name(v.to_proto()?)),
+        }
+    }
+}`
+	t.Run("ToProto", func(t *testing.T) {
+		got := extractBlock(t, contentStr, "impl gaxi::prost::ToProto<filter::Value>", "\n        }\n    }\n}")
+		if diff := cmp.Diff(wantToProto, got); diff != "" {
+			t.Errorf("mismatch (-want +got):\n%s", diff)
+		}
+	})
+
+	wantFromProto := `impl gaxi::prost::FromProto<crate::model::filter::Value> for filter::Value {
+    fn cnv(self) -> std::result::Result<crate::model::filter::Value, gaxi::prost::ConvertError> {
+        use crate::model::filter::Value as T;
+        match self {
+            Self::Encoded(v) => Ok(T::Encoded(std::boxed::Box::new(::prost::bytes::Bytes::from(v).cnv()?))),
+            Self::Name(v) => Ok(T::Name(v.cnv()?)),
+        }
+    }
+}`
+	t.Run("FromProto", func(t *testing.T) {
+		got := extractBlock(t, contentStr, "impl gaxi::prost::FromProto<crate::model::filter::Value>", "\n        }\n    }\n}")
+		if diff := cmp.Diff(wantFromProto, got); diff != "" {
+			t.Errorf("mismatch (-want +got):\n%s", diff)
+		}
+	})
+}
+
+func TestGenerateConvertMap_BytesValue(t *testing.T) {
+	bytesValue := api.NewTestMessage("BytesValue").WithID(api.WktBytesValueID)
+	mapMessage := api.NewTestMapMessageWithFields(
+		"$map<string, .google.protobuf.BytesValue>",
+		api.NewTestField("key").WithType(api.TypezString),
+		api.NewTestField("value").WithMessageType(bytesValue),
+	).WithPackage("test.v1").WithID("$map<string, .google.protobuf.BytesValue>")
+	msg := api.NewTestMessage("MessageWithMapBytesValue").WithPackage("test.v1").WithFields(
+		api.NewTestField("values").WithMessageType(mapMessage).WithMap(),
+	)
+	outDir := t.TempDir()
+	model := api.NewTestAPI([]*api.Message{msg, mapMessage}, nil, nil)
+	if err := api.CrossReference(model); err != nil {
+		t.Fatal(err)
+	}
+	cfg := &parser.ModelConfig{
+		SpecificationFormat: libconfig.SpecProtobuf,
+		Codec: map[string]string{
+			"package:wkt":       "source=google.protobuf,package=google-cloud-wkt",
+			"template-override": "templates/convert-prost",
+		},
+	}
+	if err := Generate(t.Context(), model, outDir, cfg); err != nil {
+		t.Fatal(err)
+	}
+	contents, err := os.ReadFile(filepath.Join(outDir, "convert.rs"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `impl gaxi::prost::ToProto<MessageWithMapBytesValue> for crate::model::MessageWithMapBytesValue {
+    type Output = MessageWithMapBytesValue;
+    fn to_proto(self) -> std::result::Result<MessageWithMapBytesValue, gaxi::prost::ConvertError> {
+        Ok(Self::Output {
+            values: self.values
+                .into_iter()
+                .map(|(k, v)| {
+                    gaxi::prost::pair_transpose(k.to_proto(), v.to_proto().map(std::vec::Vec::from))
+                }).collect::<std::result::Result<std::collections::HashMap<_, _>, _>>()?,
+        })
+    }
+}
+
+impl gaxi::prost::FromProto<crate::model::MessageWithMapBytesValue> for MessageWithMapBytesValue {
+    fn cnv(self) -> std::result::Result<crate::model::MessageWithMapBytesValue, gaxi::prost::ConvertError> {
+        Ok(
+            crate::model::MessageWithMapBytesValue::new()
+                .set_values(self.values.into_iter()
+                    .map(|(k, v)| {
+                        gaxi::prost::pair_transpose(k.cnv(), ::prost::bytes::Bytes::from(v).cnv())
+                    }).collect::<std::result::Result<std::collections::HashMap<_, _>, _>>()?)
+        )
+    }
+}`
+	got := extractBlock(t, string(contents), "impl gaxi::prost::ToProto<MessageWithMapBytesValue>", "\n        )\n    }\n}")
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("mismatch (-want +got):\n%s", diff)
+	}
 }

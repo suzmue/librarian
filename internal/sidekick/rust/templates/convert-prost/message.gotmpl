@@ -28,12 +28,15 @@ impl gaxi::prost::ToProto<{{ .Codec.ProstRelativeName }}> for {{ .Codec.Qualifie
     type Output = {{ .Codec.ProstRelativeName }};
     fn to_proto(self) -> std::result::Result<{{ .Codec.ProstRelativeName }}, gaxi::prost::ConvertError> {
         Ok(Self::Output {
+            {{- /* prost maps BytesValue to Vec<u8>; wkt::BytesValue is bytes::Bytes. */}}
             {{- range .Codec.BasicFields }}
             {{- if not .SkipProtoConversion }}
             {{- if .Singular }}
             {{- if .Optional }}
             {{- if .Codec.MapToBoxed }}
             {{ .Codec.FieldName }}: self.{{ .Codec.FieldName }}.map(|v| v.to_proto().map(std::boxed::Box::new)).transpose()?,
+            {{- else if .Codec.IsWktBytesValue }}
+            {{ .Codec.FieldName }}: self.{{ .Codec.FieldName }}.map(|v| v.to_proto().map(std::vec::Vec::from)).transpose()?,
             {{- else }}
             {{ .Codec.FieldName }}: self.{{ .Codec.FieldName }}.map(|v| v.to_proto()).transpose()?,
             {{- end }}
@@ -43,13 +46,21 @@ impl gaxi::prost::ToProto<{{ .Codec.ProstRelativeName }}> for {{ .Codec.Qualifie
             {{- else if .Repeated }}
             {{ .Codec.FieldName }}: self.{{ .Codec.FieldName }}
                 .into_iter()
+                {{- if .Codec.IsWktBytesValue }}
+                .map(|v| v.to_proto().map(std::vec::Vec::from))
+                {{- else }}
                 .map(|v| v.to_proto())
+                {{- end }}
                 .collect::<std::result::Result<std::vec::Vec<_>, _>>()?,
             {{- else if .Map }}
             {{ .Codec.FieldName }}: self.{{ .Codec.FieldName }}
                 .into_iter()
                 .map(|(k, v)| {
+                    {{- if .Codec.ValueIsWktBytesValue }}
+                    gaxi::prost::pair_transpose(k.to_proto(), v.to_proto().map(std::vec::Vec::from))
+                    {{- else }}
                     gaxi::prost::pair_transpose(k.to_proto(), v.to_proto())
+                    {{- end }}
                 }).collect::<std::result::Result<std::collections::HashMap<_, _>, _>>()?,
             {{- end }}
             {{- end }}
@@ -71,17 +82,25 @@ impl gaxi::prost::FromProto<{{ .Codec.QualifiedName }}> for {{ .Codec.ProstRelat
     fn cnv(self) -> std::result::Result<{{ .Codec.QualifiedName }}, gaxi::prost::ConvertError> {
         Ok(
             {{ .Codec.QualifiedName }}::new()
+                {{- /* prost maps BytesValue to Vec<u8>; wkt::BytesValue is bytes::Bytes. */}}
                 {{- range .Codec.BasicFields }}
                 {{- if not .SkipProtoConversion }}
                 {{- if .Singular }}
                 {{- if .Optional }}
+                {{- if .Codec.IsWktBytesValue }}
+                .set_or_clear_{{ .Codec.SetterName }}(self.{{ .Codec.FieldName }}.map(|v| ::prost::bytes::Bytes::from(v).cnv()).transpose()?)
+                {{- else }}
                 .set_or_clear_{{ .Codec.SetterName }}(self.{{ .Codec.FieldName }}.map(|v| v.cnv()).transpose()?)
+                {{- end }}
                 {{- else }}
                 .set_{{ .Codec.SetterName }}(self.{{ .Codec.FieldName }})
                 {{- end }}
                 {{- else if .Repeated }}
                 {{- if .IsEnum }}
                 .set_{{ .Codec.SetterName }}(self.{{ .Codec.FieldName }}.into_iter().map({{ .Codec.PrimitiveFieldType }}::from))
+                {{- else if .Codec.IsWktBytesValue }}
+                .set_{{ .Codec.SetterName }}(self.{{ .Codec.FieldName }}.into_iter().map(|v| ::prost::bytes::Bytes::from(v).cnv())
+                    .collect::<std::result::Result<std::vec::Vec<_>, _>>()?)
                 {{- else }}
                 .set_{{ .Codec.SetterName }}(self.{{ .Codec.FieldName }}.into_iter().map(|v| v.cnv())
                     .collect::<std::result::Result<std::vec::Vec<_>, _>>()?)
@@ -89,7 +108,11 @@ impl gaxi::prost::FromProto<{{ .Codec.QualifiedName }}> for {{ .Codec.ProstRelat
                 {{- else if .Map }}
                 .set_{{ .Codec.SetterName }}(self.{{ .Codec.FieldName }}.into_iter()
                     .map(|(k, v)| {
+                        {{- if .Codec.ValueIsWktBytesValue }}
+                        gaxi::prost::pair_transpose(k.cnv(), ::prost::bytes::Bytes::from(v).cnv())
+                        {{- else }}
                         gaxi::prost::pair_transpose(k.cnv(), v.cnv())
+                        {{- end }}
                     }).collect::<std::result::Result<std::collections::HashMap<_, _>, _>>()?)
                 {{- end }}
                 {{- end }}

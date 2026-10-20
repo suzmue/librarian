@@ -64,6 +64,13 @@ type fieldAnnotations struct {
 	// If true, this is a `wkt::NullValue` field, and also requires super-extra
 	// custom deserialization.
 	IsWktNullValue bool
+	// If true, this is a `wkt::BytesValue` field. Prost maps
+	// `google.protobuf.BytesValue` to `Vec<u8>`, while `wkt::BytesValue` is
+	// `bytes::Bytes`, so the prost conversions need special handling.
+	IsWktBytesValue bool
+	// If true, this is a map field whose values are `wkt::BytesValue`. See
+	// `IsWktBytesValue`.
+	ValueIsWktBytesValue bool
 	// Some fields may be the type of the message they are defined in.
 	// We need to know this in sample generation to avoid importing
 	// the parent type twice.
@@ -213,6 +220,7 @@ func (c *codec) annotateField(field *api.Field, message *api.Message, model *api
 		SkipIfIsDefault:       field.Typez != api.TypezString && field.Typez != api.TypezBytes,
 		IsWktValue:            field.Typez == api.TypezMessage && field.TypezID == ".google.protobuf.Value",
 		IsWktNullValue:        field.Typez == api.TypezEnum && field.TypezID == ".google.protobuf.NullValue",
+		IsWktBytesValue:       field.Typez == api.TypezMessage && field.TypezID == api.WktBytesValueID,
 		GenerateSetterSamples: c.generateSetterSamples,
 	}
 	if field.Recursive || (field.Typez == api.TypezMessage && field.IsOneOf) {
@@ -237,6 +245,7 @@ func (c *codec) annotateField(field *api.Field, message *api.Message, model *api
 			ann.KeyType = keyType
 			ann.ValueField = msg.Fields[1]
 			ann.ValueType = valueType
+			ann.ValueIsWktBytesValue = msg.Fields[1].Typez == api.TypezMessage && msg.Fields[1].TypezID == api.WktBytesValueID
 			key := c.mapKeySerdeAs(msg.Fields[0])
 			value := c.mapValueSerdeAs(msg.Fields[1])
 			if key != "" || value != "" {

@@ -19,9 +19,12 @@ impl gaxi::prost::ToProto<{{ .Codec.ProstRelativeName }}> for {{ .Codec.Qualifie
     type Output = {{ .Codec.ProstRelativeName }};
     fn to_proto(self) -> std::result::Result<Self::Output, gaxi::prost::ConvertError> {
         match self {
+            {{- /* prost maps BytesValue to Vec<u8>; wkt::BytesValue is bytes::Bytes. */}}
             {{- range .Fields }}
             {{- if .SkipProtoConversion }}
             Self::{{ .Codec.BranchName }}(_) => Ok(Self::Output::{{ .Codec.ProstBranchName }}(std::default::Default::default())),
+            {{- else if .Codec.IsWktBytesValue }}
+            Self::{{ .Codec.BranchName }}(v) => Ok(Self::Output::{{ .Codec.ProstBranchName }}((*v).to_proto().map(std::vec::Vec::from)?)),
             {{- else }}
             Self::{{ .Codec.BranchName }}(v) => Ok(Self::Output::{{ .Codec.ProstBranchName }}({{- if .Codec.MapToBoxed }}std::boxed::Box::new({{- end }}{{- if .Codec.IsBoxed }}(*v){{- else }}v{{- end }}.to_proto()?{{- if .Codec.MapToBoxed }}){{- end }})),
             {{- end }}
@@ -35,11 +38,14 @@ impl gaxi::prost::FromProto<{{ .Codec.QualifiedName }}> for {{ .Codec.ProstRelat
     fn cnv(self) -> std::result::Result<{{ .Codec.QualifiedName }}, gaxi::prost::ConvertError> {
         use {{ .Codec.QualifiedName }} as T;
         match self {
+            {{- /* prost maps BytesValue to Vec<u8>; wkt::BytesValue is bytes::Bytes. */}}
             {{- range .Fields }}
             {{- if .SkipProtoConversion }}
             Self::{{ .Codec.BranchName }}(_) => Ok(T::{{ .Codec.BranchName }}(std::default::Default::default())),
             {{- else if .IsEnum }}
             Self::{{ .Codec.ProstBranchName }}(v) => Ok(T::{{ .Codec.BranchName }}(v.into())),
+            {{- else if .Codec.IsWktBytesValue }}
+            Self::{{ .Codec.ProstBranchName }}(v) => Ok(T::{{ .Codec.BranchName }}(std::boxed::Box::new(::prost::bytes::Bytes::from(v).cnv()?))),
             {{- else if .Codec.IsBoxed }}
             Self::{{ .Codec.ProstBranchName }}(v) => Ok(T::{{ .Codec.BranchName }}(std::boxed::Box::new(v.cnv()?))),
             {{- else }}
