@@ -32,12 +32,24 @@ import (
 	"github.com/googleapis/librarian/internal/sidekick/rust_prost"
 )
 
+// lroKnownAnyFields lists the `google.protobuf.Any` fields in
+// `google.longrunning.Operation`. Their payloads are limited to the LRO metadata
+// and response types in the model, so they are converted with generated helpers.
+var lroKnownAnyFields = map[string]api.AnyConversion{
+	".google.longrunning.Operation.metadata": api.AnyConversionLROMetadata,
+	".google.longrunning.Operation.response": api.AnyConversionLROResponse,
+}
+
 func generateProstHybrid(ctx context.Context, model *api.API, rootTypeIDs []string, library *config.Library, outdir string, modelConfig *parser.ModelConfig) error {
 	if library.Rust == nil || library.Rust.TemplateOverride != "" || len(rootTypeIDs) == 0 {
 		return nil
 	}
 
-	hybridModel, unusedTypes, hasGoogleRpcStatus, err := filterModelToTypes(model, rootTypeIDs, library.Rust.AllowGrpcAnyFields)
+	var knownAnyFields map[string]api.AnyConversion
+	if sidekickrust.HasGrpcLROs(model) {
+		knownAnyFields = lroKnownAnyFields
+	}
+	hybridModel, unusedTypes, hasGoogleRpcStatus, err := filterModelToTypes(model, rootTypeIDs, library.Rust.AllowGrpcAnyFields, knownAnyFields)
 	if err != nil {
 		return err
 	}
@@ -74,8 +86,9 @@ func generateProstHybrid(ctx context.Context, model *api.API, rootTypeIDs []stri
 // from rootTypeIDs for prost conversion generation. It also returns a sorted slice
 // of all non-WKT unused type IDs to exclude via prost_build extern_path, and a boolean
 // indicating whether google.rpc.Status is referenced in the reachability path.
-// Errors if Any is encountered in the reachability path unless explicitly allowed via allowGrpcAnyFields.
-func filterModelToTypes(model *api.API, rootTypeIDs []string, allowGrpcAnyFields []string) (*api.API, []string, bool, error) {
+// Errors if Any is encountered in the reachability path unless explicitly allowed via allowGrpcAnyFields,
+// or the field has a known set of payload types listed in knownAnyFields.
+func filterModelToTypes(model *api.API, rootTypeIDs []string, allowGrpcAnyFields []string, knownAnyFields map[string]api.AnyConversion) (*api.API, []string, bool, error) {
 	type typeItem struct {
 		id   string
 		path string
@@ -165,6 +178,10 @@ func filterModelToTypes(model *api.API, rootTypeIDs []string, allowGrpcAnyFields
 			for _, f := range msg.Fields {
 				fieldPath := item.path + "." + f.Name
 				if isAnyType(f.TypezID) {
+					if conv, ok := knownAnyFields[f.ID]; ok {
+						f.AnyConversion = conv
+						continue
+					}
 					if matchesAllowedAnyField(f.ID, allowGrpcAnyFields) || matchesAllowedAnyField(fieldPath, allowGrpcAnyFields) {
 						f.SkipProtoConversion = true
 						continue
@@ -186,6 +203,10 @@ func filterModelToTypes(model *api.API, rootTypeIDs []string, allowGrpcAnyFields
 				for _, f := range o.Fields {
 					fieldPath := item.path + "." + f.Name
 					if isAnyType(f.TypezID) {
+						if conv, ok := knownAnyFields[f.ID]; ok {
+							f.AnyConversion = conv
+							continue
+						}
 						if matchesAllowedAnyField(f.ID, allowGrpcAnyFields) || matchesAllowedAnyField(fieldPath, allowGrpcAnyFields) {
 							f.SkipProtoConversion = true
 							continue

@@ -22,9 +22,14 @@ impl gaxi::prost::ToProto<{{ .Codec.ProstRelativeName }}> for {{ .Codec.Qualifie
             {{- range .Fields }}
             {{- if .SkipProtoConversion }}
             Self::{{ .Codec.BranchName }}(_) => Ok(Self::Output::{{ .Codec.ProstBranchName }}(std::default::Default::default())),
+            {{- else if .Codec.AnyToProst }}
+            Self::{{ .Codec.BranchName }}(v) => Ok(Self::Output::{{ .Codec.ProstBranchName }}({{ .Codec.AnyToProst }}({{- if .Codec.IsBoxed }}*v{{- else }}v{{- end }})?)),
             {{- else }}
             Self::{{ .Codec.BranchName }}(v) => Ok(Self::Output::{{ .Codec.ProstBranchName }}({{- if .Codec.MapToBoxed }}std::boxed::Box::new({{- end }}{{- if .Codec.IsBoxed }}(*v){{- else }}v{{- end }}.to_proto()?{{- if .Codec.MapToBoxed }}){{- end }})),
             {{- end }}
+            {{- end }}
+            {{- if .Codec.IsExternal }}
+            _ => Err(gaxi::prost::ConvertError::Unimplemented),
             {{- end }}
         }
     }
@@ -38,6 +43,8 @@ impl gaxi::prost::FromProto<{{ .Codec.QualifiedName }}> for {{ .Codec.ProstRelat
             {{- range .Fields }}
             {{- if .SkipProtoConversion }}
             Self::{{ .Codec.BranchName }}(_) => Ok(T::{{ .Codec.BranchName }}(std::default::Default::default())),
+            {{- else if .Codec.AnyFromProst }}
+            Self::{{ .Codec.ProstBranchName }}(v) => Ok(T::{{ .Codec.BranchName }}({{- if .Codec.IsBoxed }}std::boxed::Box::new({{ .Codec.AnyFromProst }}(v)?){{- else }}{{ .Codec.AnyFromProst }}(v)?{{- end }})),
             {{- else if .IsEnum }}
             Self::{{ .Codec.ProstBranchName }}(v) => Ok(T::{{ .Codec.BranchName }}(v.into())),
             {{- else if .Codec.IsBoxed }}

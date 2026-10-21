@@ -460,6 +460,52 @@ func TestFindUsedPackages_MapFields(t *testing.T) {
 	}
 }
 
+func TestFindUsedPackages_GrpcOutputFields(t *testing.T) {
+	status := api.NewTestMessage("Status").WithPackage("google.rpc")
+	operation := api.NewTestMessage("Operation").WithPackage("google.longrunning").WithOneOfs(
+		api.NewTestOneOf("result").WithFields(api.NewTestField("error").WithMessageType(status)),
+	)
+	req := api.NewTestMessage("CreateResourceRequest").WithPackage("test")
+	resource := api.NewTestMessage("Resource").WithPackage("test")
+
+	for _, test := range []struct {
+		name    string
+		isGrpc  bool
+		wantRpc bool
+	}{
+		{name: "grpc", isGrpc: true, wantRpc: true},
+		{name: "http", isGrpc: false, wantRpc: false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			method := api.NewTestMethod("CreateResource").
+				WithInput(req).
+				WithOutput(operation).
+				WithOperationInfo(&api.OperationInfo{MetadataTypeID: resource.ID, ResponseTypeID: resource.ID})
+			method.Codec = &methodAnnotation{IsGrpc: test.isGrpc}
+			service := api.NewTestService("LroService").WithPackage("test").WithMethods(method)
+			model := api.NewTestAPI([]*api.Message{req, resource}, nil, []*api.Service{service})
+			model.AddMessage(operation)
+			model.AddMessage(status)
+			c, err := newCodec(libconfig.SpecProtobuf, map[string]string{
+				"package:longrunning": "package=google-cloud-longrunning,source=google.longrunning",
+				"package:rpc":         "package=google-cloud-rpc,source=google.rpc",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			findUsedPackages(model, c)
+			got := map[string]bool{}
+			for _, pkg := range c.extraPackages {
+				got[pkg.name] = pkg.used
+			}
+			want := map[string]bool{"longrunning": true, "rpc": test.wantRpc}
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 func TestUsedByGrpcWithDefaultTransport(t *testing.T) {
 	method := api.NewTestMethod("GetResource")
 	service := api.NewTestService("TestService").WithMethods(method)

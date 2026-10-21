@@ -32,6 +32,9 @@ use {{ .Codec.ProstPath }}::{{ .Codec.PackageModuleName }}::*;
 {{- if .Codec.IncludeRpcStatusConversion }}
 {{- include "templates/convert-prost/status" . }}
 {{- end }}
+{{- if .Codec.IncludeLROAnyConversion }}
+{{- include "templates/convert-prost/lro_any" . }}
+{{- end }}
 {{- range .Enums }}
 {{- include "templates/convert-prost/enum" . }}
 {{- end }}

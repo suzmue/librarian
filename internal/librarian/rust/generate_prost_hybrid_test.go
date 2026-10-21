@@ -112,7 +112,7 @@ func TestFilterModelToTypes(t *testing.T) {
 
 	model := api.NewTestAPI([]*api.Message{streamingMsg, unusedMsg}, []*api.Enum{}, []*api.Service{})
 
-	filtered, unused, _, err := filterModelToTypes(model, []string{streamingMsg.ID}, nil)
+	filtered, unused, _, err := filterModelToTypes(model, []string{streamingMsg.ID}, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -138,7 +138,7 @@ func TestFilterModelToTypesUnusedFieldLookup(t *testing.T) {
 
 	model := api.NewTestAPI([]*api.Message{streamMsg, unaryReq, childData}, []*api.Enum{}, []*api.Service{})
 
-	filtered, _, _, err := filterModelToTypes(model, []string{streamMsg.ID}, nil)
+	filtered, _, _, err := filterModelToTypes(model, []string{streamMsg.ID}, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -169,7 +169,7 @@ func TestFilterModelToTypesExternalTypes(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	filtered, _, _, err := filterModelToTypes(model, []string{streamMsg.ID}, nil)
+	filtered, _, _, err := filterModelToTypes(model, []string{streamMsg.ID}, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -192,7 +192,7 @@ func TestFilterModelToTypesAnyError(t *testing.T) {
 
 	anyModel := api.NewTestAPI([]*api.Message{anyMsg}, []*api.Enum{}, []*api.Service{})
 
-	_, _, _, err := filterModelToTypes(anyModel, []string{anyMsg.ID}, nil)
+	_, _, _, err := filterModelToTypes(anyModel, []string{anyMsg.ID}, nil, nil)
 	if err == nil {
 		t.Fatal("expected error for google.protobuf.Any, got nil")
 	}
@@ -218,7 +218,7 @@ func TestFilterModelToStreamingMultipleAnyError(t *testing.T) {
 
 	anyModel := api.NewTestAPI([]*api.Message{anyMsg}, []*api.Enum{}, []*api.Service{anyService})
 
-	_, _, _, err := filterModelToTypes(anyModel, []string{anyMsg.ID}, nil)
+	_, _, _, err := filterModelToTypes(anyModel, []string{anyMsg.ID}, nil, nil)
 	if err == nil {
 		t.Fatal("expected error for google.protobuf.Any, got nil")
 	}
@@ -248,7 +248,7 @@ func TestFilterModelToStreamingPartialAllowedAny(t *testing.T) {
 
 	anyModel := api.NewTestAPI([]*api.Message{anyMsg}, []*api.Enum{}, []*api.Service{anyService})
 
-	_, _, _, err := filterModelToTypes(anyModel, []string{anyMsg.ID}, []string{".google.test.v1.AnyReq.details"})
+	_, _, _, err := filterModelToTypes(anyModel, []string{anyMsg.ID}, []string{".google.test.v1.AnyReq.details"}, nil)
 	if err == nil {
 		t.Fatal("expected error for remaining google.protobuf.Any field, got nil")
 	}
@@ -281,7 +281,7 @@ func TestFilterModelToStreamingNestedAndOneofAnyError(t *testing.T) {
 
 	model := api.NewTestAPI([]*api.Message{parentMsg, childMsg}, []*api.Enum{}, []*api.Service{service})
 
-	_, _, _, err := filterModelToTypes(model, []string{parentMsg.ID}, nil)
+	_, _, _, err := filterModelToTypes(model, []string{parentMsg.ID}, nil, nil)
 	if err == nil {
 		t.Fatal("expected error for google.protobuf.Any, got nil")
 	}
@@ -308,7 +308,7 @@ func TestFilterModelToTypesAllowedAny(t *testing.T) {
 
 	anyModel := api.NewTestAPI([]*api.Message{anyMsg}, []*api.Enum{}, []*api.Service{})
 
-	filtered, _, _, err := filterModelToTypes(anyModel, []string{anyMsg.ID}, []string{".google.test.v1.AnyReq.details"})
+	filtered, _, _, err := filterModelToTypes(anyModel, []string{anyMsg.ID}, []string{".google.test.v1.AnyReq.details"}, nil)
 	if err != nil {
 		t.Fatalf("expected success with allowGrpcAnyFields, got error: %v", err)
 	}
@@ -347,7 +347,7 @@ func TestFilterModelToTypesGoogleRpcStatus(t *testing.T) {
 	statusModel := api.NewTestAPI([]*api.Message{reqMsg}, []*api.Enum{}, []*api.Service{})
 	statusModel.AddMessage(statusMsg)
 
-	filtered, unused, hasStatus, err := filterModelToTypes(statusModel, []string{reqMsg.ID}, nil)
+	filtered, unused, hasStatus, err := filterModelToTypes(statusModel, []string{reqMsg.ID}, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error for google.rpc.Status: %v", err)
 	}
@@ -367,6 +367,61 @@ func TestFilterModelToTypesGoogleRpcStatus(t *testing.T) {
 	}
 }
 
+func TestFilterModelToTypesLROOperation(t *testing.T) {
+	anyMsg := api.NewTestMessage("Any").WithPackage("google.protobuf")
+	statusMsg := api.NewTestMessage("Status").WithPackage("google.rpc").WithFields(
+		api.NewTestField("details").WithType(api.TypezMessage).WithTypezID(".google.protobuf.Any").WithRepeated(),
+	)
+	metadataField := api.NewTestField("metadata").WithMessageType(anyMsg).WithOptional()
+	responseField := api.NewTestField("response").WithMessageType(anyMsg)
+	operationMsg := api.NewTestMessage("Operation").WithPackage("google.longrunning").
+		WithFields(
+			api.NewTestField("name").WithType(api.TypezString),
+			metadataField,
+		).
+		WithOneOfs(api.NewTestOneOf("result").WithFields(
+			api.NewTestField("error").WithMessageType(statusMsg),
+			responseField,
+		))
+	reqMsg := api.NewTestMessage("CreateRequest").WithPackage("google.test.v1")
+	model := api.NewTestAPI([]*api.Message{reqMsg}, []*api.Enum{}, []*api.Service{}).WithPackageName("google.test.v1")
+	for _, m := range []*api.Message{anyMsg, statusMsg, operationMsg} {
+		model.AddMessage(m)
+	}
+
+	t.Run("without known Any fields", func(t *testing.T) {
+		_, _, _, err := filterModelToTypes(model, []string{reqMsg.ID, operationMsg.ID}, nil, nil)
+		if err == nil {
+			t.Fatal("expected an error for google.longrunning.Operation Any fields")
+		}
+	})
+
+	t.Run("with known Any fields", func(t *testing.T) {
+		filtered, unused, hasStatus, err := filterModelToTypes(model, []string{reqMsg.ID, operationMsg.ID}, nil, lroKnownAnyFields)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !hasStatus {
+			t.Errorf("expected hasStatus to be true")
+		}
+		if got := metadataField.AnyConversion; got != api.AnyConversionLROMetadata {
+			t.Errorf("metadata AnyConversion = %v, want %v", got, api.AnyConversionLROMetadata)
+		}
+		if got := responseField.AnyConversion; got != api.AnyConversionLROResponse {
+			t.Errorf("response AnyConversion = %v, want %v", got, api.AnyConversionLROResponse)
+		}
+		if metadataField.SkipProtoConversion || responseField.SkipProtoConversion {
+			t.Errorf("expected Any fields with known types to not skip proto conversion")
+		}
+		if diff := cmp.Diff([]*api.Message{operationMsg}, filtered.ExternalMessages); diff != "" {
+			t.Errorf("ExternalMessages mismatch (-want +got):\n%s", diff)
+		}
+		if slices.Contains(unused, operationMsg.ID) {
+			t.Errorf("google.longrunning.Operation should not be unused, got: %v", unused)
+		}
+	})
+}
+
 func TestFilterModelToTypesNestedTypeParentPreservation(t *testing.T) {
 	child := api.NewTestMessage("Child")
 	parent := api.NewTestMessage("Parent").WithPackage("google.test.v1").WithMessages(child)
@@ -382,7 +437,7 @@ func TestFilterModelToTypesNestedTypeParentPreservation(t *testing.T) {
 
 	model := api.NewTestAPI([]*api.Message{parent, sibling, streamReq}, []*api.Enum{}, []*api.Service{})
 
-	_, unusedTypes, _, err := filterModelToTypes(model, []string{streamReq.ID}, nil)
+	_, unusedTypes, _, err := filterModelToTypes(model, []string{streamReq.ID}, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -439,7 +494,7 @@ func TestFilterModelToTypesMultipleRoots(t *testing.T) {
 
 			model := api.NewTestAPI([]*api.Message{msgA, msgB, msgC}, []*api.Enum{}, []*api.Service{})
 
-			filtered, unused, _, err := filterModelToTypes(model, test.rootTypeIDs, nil)
+			filtered, unused, _, err := filterModelToTypes(model, test.rootTypeIDs, nil, nil)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -466,7 +521,7 @@ func TestFilterModelToTypesCyclicRecursion(t *testing.T) {
 	)
 	model := api.NewTestAPI([]*api.Message{parent}, []*api.Enum{}, []*api.Service{})
 
-	filtered, _, _, err := filterModelToTypes(model, []string{parent.ID}, nil)
+	filtered, _, _, err := filterModelToTypes(model, []string{parent.ID}, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

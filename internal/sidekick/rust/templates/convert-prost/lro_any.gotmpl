@@ -1,0 +1,85 @@
+{{/*
+Copyright 2026 Google LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/}}
+
+/// Converts a `wkt::Any` with an LRO metadata or response payload to a `prost_types::Any`.
+///
+/// Returns an error if the payload type is not an LRO metadata or response type
+/// in this crate.
+pub(crate) fn lro_any_to_prost(
+    value: wkt::Any,
+) -> std::result::Result<prost_types::Any, gaxi::prost::ConvertError> {
+    use gaxi::prost::{ConvertError, ToProto};
+    match value.type_url().unwrap_or_default() {
+        "" => Ok(prost_types::Any::default()),
+        {{- range .Codec.LROAnyTypes }}
+        "{{ .TypeURL }}" => value
+            .to_msg::<{{ .QualifiedName }}>()
+            .map_err(ConvertError::other)?
+            .to_proto()
+            .and_then(|prost_msg| {
+                prost_types::Any::from_msg(&prost_msg).map_err(ConvertError::other)
+            }),
+        {{- end }}
+        type_url => Err(ConvertError::UnexpectedTypeUrl(type_url.to_string())),
+    }
+}
+
+/// Converts a `prost_types::Any` with an LRO metadata or response payload to a `wkt::Any`.
+///
+/// Returns an error if the payload type is not an LRO metadata or response type
+/// in this crate.
+pub(crate) fn lro_any_from_prost(
+    value: prost_types::Any,
+) -> std::result::Result<wkt::Any, gaxi::prost::ConvertError> {
+    use gaxi::prost::{ConvertError, FromProto};
+    match value.type_url.as_str() {
+        "" => Ok(wkt::Any::default()),
+        {{- range .Codec.LROAnyTypes }}
+        "{{ .TypeURL }}" => value
+            .to_msg::<{{ .ProstName }}>()
+            .map_err(ConvertError::other)?
+            .cnv()
+            .and_then(|our_msg| wkt::Any::from_msg(&our_msg).map_err(ConvertError::other)),
+        {{- end }}
+        type_url => Err(ConvertError::UnexpectedTypeUrl(type_url.to_string())),
+    }
+}
+
+/// Converts the LRO metadata to prost.
+///
+/// Metadata with a payload type that is not an LRO metadata or response type
+/// in this crate is dropped.
+pub(crate) fn lro_metadata_to_prost(
+    value: Option<wkt::Any>,
+) -> std::result::Result<Option<prost_types::Any>, gaxi::prost::ConvertError> {
+    match value.map(lro_any_to_prost).transpose() {
+        Err(gaxi::prost::ConvertError::UnexpectedTypeUrl(_)) => Ok(None),
+        result => result,
+    }
+}
+
+/// Converts the LRO metadata from prost.
+///
+/// Metadata with a payload type that is not an LRO metadata or response type
+/// in this crate is dropped.
+pub(crate) fn lro_metadata_from_prost(
+    value: Option<prost_types::Any>,
+) -> std::result::Result<Option<wkt::Any>, gaxi::prost::ConvertError> {
+    match value.map(lro_any_from_prost).transpose() {
+        Err(gaxi::prost::ConvertError::UnexpectedTypeUrl(_)) => Ok(None),
+        result => result,
+    }
+}

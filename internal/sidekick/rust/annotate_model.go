@@ -56,10 +56,16 @@ type modelAnnotations struct {
 	HasLROs                    bool
 	ProstPath                  string
 	IncludeRpcStatusConversion bool
-	CopyrightYear              string
-	BoilerPlate                []string
-	DefaultHost                string
-	DefaultHostShort           string
+	// IncludeLROAnyConversion is true if `convert.rs` needs the helpers to
+	// convert the `google.protobuf.Any` fields in `google.longrunning.Operation`.
+	IncludeLROAnyConversion bool
+	// LROAnyTypes lists the LRO metadata and response types handled by the
+	// helpers.
+	LROAnyTypes      []*lroAnyType
+	CopyrightYear    string
+	BoilerPlate      []string
+	DefaultHost      string
+	DefaultHostShort string
 	// Services without methods create a lot of warnings in Rust. The dead code
 	// analysis is extremely good, and can determine that several types and
 	// member variables are going unused if the service does not have any
@@ -184,11 +190,126 @@ func GrpcRootTypeIDs(model *api.API) []string {
 				if m.OutputTypeID != "" {
 					rootTypeIDs = append(rootTypeIDs, m.OutputTypeID)
 				}
+				// LRO metadata and response types are only reachable through
+				// `google.protobuf.Any` fields, so they must be roots.
+				if m.OperationInfo != nil {
+					if id := m.OperationInfo.MetadataTypeID; id != "" {
+						rootTypeIDs = append(rootTypeIDs, id)
+					}
+					if id := m.OperationInfo.ResponseTypeID; id != "" {
+						rootTypeIDs = append(rootTypeIDs, id)
+					}
+				}
 			}
 		}
 	}
 	slices.Sort(rootTypeIDs)
 	return slices.Compact(rootTypeIDs)
+}
+
+// HasGrpcLROs returns true if any generated LRO method or LRO poller in the
+// model uses gRPC.
+func HasGrpcLROs(model *api.API) bool {
+	for _, s := range model.Services {
+		for _, m := range s.Methods {
+			if ann, ok := m.Codec.(*methodAnnotation); ok && ann.IsGrpc && (m.OperationInfo != nil || m.IsLroPoller) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// lroAnyType describes a type that may appear in the `google.protobuf.Any`
+// fields of a `google.longrunning.Operation`.
+type lroAnyType struct {
+	// TypeURL is the type URL of the payload.
+	TypeURL string
+	// QualifiedName is the Rust type in the model.
+	QualifiedName string
+	// ProstName is the prost type.
+	ProstName string
+}
+
+// lroAnyTypesFor returns the unique LRO metadata and response types for the
+// services.
+func lroAnyTypesFor(services []*api.Service, prostPrefix string) []*lroAnyType {
+	seen := make(map[string]bool)
+	var result []*lroAnyType
+	for _, s := range services {
+		ann, ok := s.Codec.(*serviceAnnotations)
+		if !ok {
+			continue
+		}
+		for _, m := range ann.LROTypes {
+			if m == nil || seen[m.ID] {
+				continue
+			}
+			seen[m.ID] = true
+			mAnn, ok := m.Codec.(*messageAnnotation)
+			if !ok {
+				continue
+			}
+			result = append(result, &lroAnyType{
+				TypeURL:       "type.googleapis.com/" + strings.TrimPrefix(m.ID, "."),
+				QualifiedName: mAnn.QualifiedName,
+				ProstName:     prostQualifiedName(m, prostPrefix),
+			})
+		}
+	}
+	return result
+}
+
+// hasAnyConversion returns true if the message, or any nested message, has a
+// field that uses a known-type `google.protobuf.Any` conversion.
+func hasAnyConversion(m *api.Message) bool {
+	isSet := func(f *api.Field) bool { return f.AnyConversion != api.AnyConversionNone }
+	if slices.ContainsFunc(m.Fields, isSet) {
+		return true
+	}
+	for _, o := range m.OneOfs {
+		if slices.ContainsFunc(o.Fields, isSet) {
+			return true
+		}
+	}
+	return slices.ContainsFunc(m.Messages, hasAnyConversion)
+}
+
+// prostQualifiedName returns the fully qualified prost type for a message.
+func prostQualifiedName(m *api.Message, prostPrefix string) string {
+	switch {
+	case m.ID == ".google.protobuf.Empty":
+		// prost maps `google.protobuf.Empty` to `()`, which cannot be the
+		// payload of a `prost_types::Any`.
+		return "gaxi::prost::Empty"
+	case m.Package == "google.protobuf":
+		return "prost_types::" + toProstPascal(m.Name)
+	default:
+		return prostPrefix + packageToModuleName(m.Package) + "::" + prostMessageRelativePath(m)
+	}
+}
+
+// overrideExternalProstNames qualifies the prost names of an external message,
+// including its nested messages, enums, and oneofs, with prostPrefix.
+func overrideExternalProstNames(m *api.Message, prostPrefix string) {
+	prefix := prostPrefix + packageToModuleName(m.Package) + "::"
+	if ann, ok := m.Codec.(*messageAnnotation); ok {
+		ann.ProstRelativeName = prefix + prostMessageRelativePath(m)
+	}
+	for _, e := range m.Enums {
+		if ann, ok := e.Codec.(*enumAnnotation); ok {
+			ann.ProstRelativeName = prefix + prostEnumRelativePath(e)
+		}
+	}
+	for _, o := range m.OneOfs {
+		if ann, ok := o.Codec.(*oneOfAnnotation); ok {
+			ann.ProstRelativeName = prefix + prostMessageModulePath(m) + "::" + toProstPascal(ann.EnumName)
+			ann.IsExternal = true
+		}
+	}
+	for _, child := range m.Messages {
+		overrideExternalProstNames(child, prostPrefix)
+	}
 }
 
 // annotateModel creates a struct used as input for Mustache templates.
@@ -290,9 +411,7 @@ func annotateModel(model *api.API, codec *codec) (*modelAnnotations, error) {
 		}
 	}
 	for _, m := range model.ExternalMessages {
-		if ann, ok := m.Codec.(*messageAnnotation); ok {
-			ann.ProstRelativeName = prostPrefix + packageToModuleName(m.Package) + "::" + prostMessageRelativePath(m)
-		}
+		overrideExternalProstNames(m, prostPrefix)
 	}
 
 	servicesSubset := language.FilterSlice(model.Services, func(s *api.Service) bool {
@@ -358,6 +477,12 @@ func annotateModel(model *api.API, codec *codec) (*modelAnnotations, error) {
 		includeRpcStatusConversion = true
 	}
 
+	includeLROAnyConversion := slices.ContainsFunc(model.Messages, hasAnyConversion) || slices.ContainsFunc(model.ExternalMessages, hasAnyConversion)
+	var lroAnyTypes []*lroAnyType
+	if includeLROAnyConversion {
+		lroAnyTypes = lroAnyTypesFor(servicesSubset, prostPrefix)
+	}
+
 	perServiceFeatures := codec.perServiceFeatures && len(servicesSubset) > 0
 	var extraFeatures []string
 	if hasDiscoveryLROs && perServiceFeatures {
@@ -381,6 +506,8 @@ func annotateModel(model *api.API, codec *codec) (*modelAnnotations, error) {
 		HasLROs:                    hasLROs,
 		ProstPath:                  codec.prostPath,
 		IncludeRpcStatusConversion: includeRpcStatusConversion,
+		IncludeLROAnyConversion:    includeLROAnyConversion,
+		LROAnyTypes:                lroAnyTypes,
 		CopyrightYear:              codec.generationYear,
 		BoilerPlate: append(license.HeaderBulk(),
 			"",

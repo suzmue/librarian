@@ -18,6 +18,21 @@ import (
 	"slices"
 )
 
+// AnyConversion describes how a `google.protobuf.Any` field is converted when
+// the set of payload types is known in advance.
+type AnyConversion int
+
+const (
+	// AnyConversionNone means the field has no special Any conversion.
+	AnyConversionNone AnyConversion = iota
+	// AnyConversionLROMetadata means the payload is one of the LRO metadata
+	// types. Payloads with unknown types are dropped.
+	AnyConversionLROMetadata
+	// AnyConversionLROResponse means the payload is one of the LRO response
+	// types. Payloads with unknown types are an error.
+	AnyConversionLROResponse
+)
+
 // Field defines a field in a Message.
 type Field struct {
 	// Documentation for the field.
@@ -58,6 +73,9 @@ type Field struct {
 	// SkipProtoConversion is true if this field should be omitted from
 	// proto/prost conversion (e.g. allowed Any fields in streaming RPCs).
 	SkipProtoConversion bool
+	// AnyConversion describes how a `google.protobuf.Any` field with a known
+	// set of payload types is converted in proto/prost conversions.
+	AnyConversion AnyConversion
 	// AutoPopulated is true if the field is eligible to be auto-populated,
 	// per the requirements in AIP-4235.
 	//

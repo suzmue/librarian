@@ -32,7 +32,9 @@ impl gaxi::prost::ToProto<{{ .Codec.ProstRelativeName }}> for {{ .Codec.Qualifie
             {{- if not .SkipProtoConversion }}
             {{- if .Singular }}
             {{- if .Optional }}
-            {{- if .Codec.MapToBoxed }}
+            {{- if .Codec.AnyToProst }}
+            {{ .Codec.FieldName }}: {{ .Codec.AnyToProst }}(self.{{ .Codec.FieldName }})?,
+            {{- else if .Codec.MapToBoxed }}
             {{ .Codec.FieldName }}: self.{{ .Codec.FieldName }}.map(|v| v.to_proto().map(std::boxed::Box::new)).transpose()?,
             {{- else }}
             {{ .Codec.FieldName }}: self.{{ .Codec.FieldName }}.map(|v| v.to_proto()).transpose()?,
@@ -75,7 +77,11 @@ impl gaxi::prost::FromProto<{{ .Codec.QualifiedName }}> for {{ .Codec.ProstRelat
                 {{- if not .SkipProtoConversion }}
                 {{- if .Singular }}
                 {{- if .Optional }}
+                {{- if .Codec.AnyFromProst }}
+                .set_or_clear_{{ .Codec.SetterName }}({{ .Codec.AnyFromProst }}(self.{{ .Codec.FieldName }})?)
+                {{- else }}
                 .set_or_clear_{{ .Codec.SetterName }}(self.{{ .Codec.FieldName }}.map(|v| v.cnv()).transpose()?)
+                {{- end }}
                 {{- else }}
                 .set_{{ .Codec.SetterName }}(self.{{ .Codec.FieldName }})
                 {{- end }}

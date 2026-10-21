@@ -637,12 +637,12 @@ func TestMethodUsesGrpc(t *testing.T) {
 			want:             false,
 		},
 		{
-			name:   "LRO method defaults to HTTP on default template with default_transport grpc",
+			name:   "LRO method uses gRPC on default template with default_transport grpc",
 			method: lroMethod,
 			options: map[string]string{
 				"default-transport": "grpc",
 			},
-			want: false,
+			want: true,
 		},
 		{
 			name:             "LRO method uses gRPC on grpc-client template",

@@ -56,6 +56,10 @@ type fieldAnnotations struct {
 	SerdeAs string
 	// If true, the field is boxed in the prost generated type.
 	MapToBoxed bool
+	// For `google.protobuf.Any` fields with a known set of payload types, the
+	// names of the generated helper functions used in prost conversions.
+	AnyToProst   string
+	AnyFromProst string
 	// If true, use `wkt::internal::is_default()` to skip the field
 	SkipIfIsDefault bool
 	// If true, this is a `wkt::Value` field, and requires super-extra custom
@@ -219,6 +223,7 @@ func (c *codec) annotateField(field *api.Field, message *api.Message, model *api
 		ann.IsBoxed = true
 	}
 	ann.MapToBoxed = mapToBoxed(field, message, model)
+	ann.AnyToProst, ann.AnyFromProst = anyConversionHelpers(field.AnyConversion)
 	field.Codec = ann
 	if field.Typez == api.TypezMessage {
 		if msg := model.Message(field.TypezID); msg != nil && msg.IsMap {
@@ -352,4 +357,18 @@ func mapToBoxed(field *api.Field, message *api.Message, model *api.API) bool {
 func unqualifiedRustName(qualifiedName string) string {
 	parts := strings.Split(qualifiedName, "::")
 	return parts[len(parts)-1]
+}
+
+// anyConversionHelpers returns the names of the helper functions, generated in
+// `convert.rs`, that convert a `google.protobuf.Any` field with a known set of
+// payload types to and from prost.
+func anyConversionHelpers(conv api.AnyConversion) (string, string) {
+	switch conv {
+	case api.AnyConversionLROMetadata:
+		return "lro_metadata_to_prost", "lro_metadata_from_prost"
+	case api.AnyConversionLROResponse:
+		return "lro_any_to_prost", "lro_any_from_prost"
+	default:
+		return "", ""
+	}
 }

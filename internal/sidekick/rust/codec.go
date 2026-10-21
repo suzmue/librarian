@@ -1522,7 +1522,14 @@ func findUsedPackages(model *api.API, c *codec) {
 				findUsedPackagesMessage(m, model, c, map[string]bool{})
 			}
 			if m := model.Message(method.OutputTypeID); m != nil {
-				usePackage(m.Package, model, c)
+				if ann, ok := method.Codec.(*methodAnnotation); ok && ann.IsGrpc {
+					// gRPC methods convert the output from prost, which needs
+					// the packages of its fields. For example, converting a
+					// `google.longrunning.Operation` needs `google.rpc.Status`.
+					findUsedPackagesMessage(m, model, c, map[string]bool{})
+				} else {
+					usePackage(m.Package, model, c)
+				}
 			}
 			if method.OperationInfo != nil {
 				if m := model.Message(method.OperationInfo.MetadataTypeID); m != nil {

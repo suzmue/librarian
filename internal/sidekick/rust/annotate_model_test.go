@@ -953,6 +953,14 @@ func TestGrpcRootTypeIDs(t *testing.T) {
 		WithVerb("GET").
 		WithPathTemplate(&api.PathTemplate{})
 	streamMethod := api.NewTestMethod("Stream").WithInput(req).WithOutput(resp).WithBidiStreaming()
+	metadata := api.NewTestMessage("Metadata").WithPackage("google.cloud.test.v1")
+	lroResp := api.NewTestMessage("LroResp").WithPackage("google.cloud.test.v1")
+	lroMethod := api.NewTestMethod("Lro").
+		WithInput(req).
+		WithOutputTypeID(".google.longrunning.Operation").
+		WithVerb("POST").
+		WithPathTemplate(&api.PathTemplate{}).
+		WithOperationInfo(&api.OperationInfo{MetadataTypeID: metadata.ID, ResponseTypeID: lroResp.ID})
 
 	for _, test := range []struct {
 		name    string
@@ -960,6 +968,20 @@ func TestGrpcRootTypeIDs(t *testing.T) {
 		options map[string]string
 		want    []string
 	}{
+		{
+			name:    "LRO method with default_transport grpc returns metadata and response root types",
+			methods: []*api.Method{lroMethod},
+			options: map[string]string{
+				"default-transport": "grpc",
+			},
+			want: []string{".google.cloud.test.v1.LroResp", ".google.cloud.test.v1.Metadata", req.ID, ".google.longrunning.Operation"},
+		},
+		{
+			name:    "LRO method with default http returns no grpc root types",
+			methods: []*api.Method{lroMethod},
+			options: map[string]string{},
+			want:    nil,
+		},
 		{
 			name:    "unary method with default http returns no grpc root types",
 			methods: []*api.Method{unaryMethod},
@@ -989,17 +1011,77 @@ func TestGrpcRootTypeIDs(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			svc := api.NewTestService("Service").WithPackage("google.cloud.test.v1").WithMethods(test.methods...)
-			model := api.NewTestAPI([]*api.Message{req, resp}, []*api.Enum{}, []*api.Service{svc})
+			model := api.NewTestAPI([]*api.Message{req, resp, metadata, lroResp}, []*api.Enum{}, []*api.Service{svc})
+			model.AddMessage(api.NewTestMessage("Operation").WithPackage("google.longrunning"))
 			if err := api.CrossReference(model); err != nil {
 				t.Fatal(err)
 			}
-			codec := newTestCodec(t, libconfig.SpecProtobuf, "", test.options)
+			codec := newTestCodec(t, libconfig.SpecProtobuf, "google.longrunning", test.options)
 			if _, err := annotateModel(model, codec); err != nil {
 				t.Fatal(err)
 			}
 			got := GrpcRootTypeIDs(model)
 			if diff := cmp.Diff(test.want, got, cmpopts.EquateEmpty()); diff != "" {
 				t.Errorf("mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestHasGrpcLROs(t *testing.T) {
+	req := api.NewTestMessage("Req").WithPackage("google.cloud.test.v1")
+	resp := api.NewTestMessage("Resp").WithPackage("google.cloud.test.v1")
+	operation := api.NewTestMessage("Operation").WithPackage("google.longrunning")
+	unaryMethod := api.NewTestMethod("Unary").
+		WithInput(req).
+		WithOutput(resp).
+		WithVerb("GET").
+		WithPathTemplate(&api.PathTemplate{})
+	lroMethod := api.NewTestMethod("Lro").
+		WithInput(req).
+		WithOutput(operation).
+		WithVerb("POST").
+		WithPathTemplate(&api.PathTemplate{}).
+		WithOperationInfo(&api.OperationInfo{MetadataTypeID: resp.ID, ResponseTypeID: resp.ID})
+
+	for _, test := range []struct {
+		name    string
+		methods []*api.Method
+		options map[string]string
+		want    bool
+	}{
+		{
+			name:    "LRO with default_transport grpc",
+			methods: []*api.Method{unaryMethod, lroMethod},
+			options: map[string]string{"default-transport": "grpc"},
+			want:    true,
+		},
+		{
+			name:    "LRO with default http",
+			methods: []*api.Method{unaryMethod, lroMethod},
+			options: map[string]string{},
+			want:    false,
+		},
+		{
+			name:    "no LROs with default_transport grpc",
+			methods: []*api.Method{unaryMethod},
+			options: map[string]string{"default-transport": "grpc"},
+			want:    false,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			svc := api.NewTestService("Service").WithPackage("google.cloud.test.v1").WithMethods(test.methods...)
+			model := api.NewTestAPI([]*api.Message{req, resp}, []*api.Enum{}, []*api.Service{svc})
+			model.AddMessage(operation)
+			if err := api.CrossReference(model); err != nil {
+				t.Fatal(err)
+			}
+			codec := newTestCodec(t, libconfig.SpecProtobuf, "google.longrunning", test.options)
+			if _, err := annotateModel(model, codec); err != nil {
+				t.Fatal(err)
+			}
+			if got := HasGrpcLROs(model); got != test.want {
+				t.Errorf("HasGrpcLROs() = %v, want %v", got, test.want)
 			}
 		})
 	}

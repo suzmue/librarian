@@ -38,6 +38,9 @@ type oneOfAnnotation struct {
 	RelativeName string
 	// The type name relative to the prost module (e.g. `message_module::OneofName`).
 	ProstRelativeName string
+	// IsExternal is true if the Rust `enum` is defined in another crate. Such
+	// enums are `#[non_exhaustive]`, so matching on them requires a wildcard arm.
+	IsExternal bool
 	// The Rust `struct` that contains this oneof, fully qualified
 	StructQualifiedName string
 	// The fully qualified name for examples. For messages in external packages

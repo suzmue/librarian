@@ -526,3 +526,115 @@ func TestGenerateConvertOneOf_ReservedRawIdentifiers(t *testing.T) {
 		}
 	})
 }
+
+func TestGenerateConvertLROOperation(t *testing.T) {
+	anyMsg := api.NewTestMessage("Any").WithPackage("google.protobuf")
+	emptyMsg := api.NewTestMessage("Empty").WithPackage("google.protobuf")
+	statusMsg := api.NewTestMessage("Status").WithPackage("google.rpc")
+	metadataField := api.NewTestField("metadata").WithMessageType(anyMsg).WithOptional()
+	metadataField.AnyConversion = api.AnyConversionLROMetadata
+	responseField := api.NewTestField("response").WithMessageType(anyMsg)
+	responseField.AnyConversion = api.AnyConversionLROResponse
+	operationMsg := api.NewTestMessage("Operation").WithPackage("google.longrunning").
+		WithFields(
+			api.NewTestField("name").WithType(api.TypezString),
+			metadataField,
+			api.NewTestField("done").WithType(api.TypezBool),
+		).
+		WithOneOfs(api.NewTestOneOf("result").WithFields(
+			api.NewTestField("error").WithMessageType(statusMsg),
+			responseField,
+		))
+	reqMsg := api.NewTestMessage("CreateRequest").WithPackage("test.v1")
+	respMsg := api.NewTestMessage("Resource").WithPackage("test.v1")
+	mdMsg := api.NewTestMessage("OperationMetadata").WithPackage("test.v1")
+	createMethod := api.NewTestMethod("Create").WithInput(reqMsg).WithOutput(operationMsg).
+		WithOperationInfo(&api.OperationInfo{MetadataTypeID: mdMsg.ID, ResponseTypeID: respMsg.ID})
+	deleteMethod := api.NewTestMethod("Delete").WithInput(reqMsg).WithOutput(operationMsg).
+		WithOperationInfo(&api.OperationInfo{MetadataTypeID: mdMsg.ID, ResponseTypeID: emptyMsg.ID})
+	service := api.NewTestService("Service").WithPackage("test.v1").WithMethods(createMethod, deleteMethod)
+
+	outDir := t.TempDir()
+	model := api.NewTestAPI([]*api.Message{reqMsg, respMsg, mdMsg}, nil, []*api.Service{service}).
+		WithPackageName("test.v1")
+	model.ExternalMessages = []*api.Message{operationMsg}
+	for _, m := range []*api.Message{anyMsg, emptyMsg, statusMsg, operationMsg} {
+		model.AddMessage(m)
+	}
+	if err := api.CrossReference(model); err != nil {
+		t.Fatal(err)
+	}
+	cfg := &parser.ModelConfig{
+		SpecificationFormat: libconfig.SpecProtobuf,
+		Codec: map[string]string{
+			"package:wkt":                      "source=google.protobuf,package=google-cloud-wkt",
+			"package:google-cloud-rpc":         "source=google.rpc,package=google-cloud-rpc",
+			"package:google-cloud-longrunning": "source=google.longrunning,package=google-cloud-longrunning",
+			"default-transport":                "grpc",
+			"template-override":                "templates/convert-prost",
+			"prost-path":                       "super::prost",
+		},
+	}
+	if err := Generate(t.Context(), model, outDir, cfg); err != nil {
+		t.Fatal(err)
+	}
+	contents, err := os.ReadFile(filepath.Join(outDir, "convert.rs"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	contentStr := string(contents)
+	for _, want := range []string{
+		`pub(crate) fn lro_any_to_prost(`,
+		`pub(crate) fn lro_any_from_prost(`,
+		`pub(crate) fn lro_metadata_to_prost(`,
+		`pub(crate) fn lro_metadata_from_prost(`,
+		`        "type.googleapis.com/test.v1.Resource" => value
+            .to_msg::<crate::model::Resource>()`,
+		`        "type.googleapis.com/google.protobuf.Empty" => value
+            .to_msg::<wkt::Empty>()`,
+		`        "type.googleapis.com/test.v1.OperationMetadata" => value
+            .to_msg::<super::prost::test::v1::OperationMetadata>()`,
+		`        "type.googleapis.com/google.protobuf.Empty" => value
+            .to_msg::<gaxi::prost::Empty>()`,
+		`            metadata: lro_metadata_to_prost(self.metadata)?,`,
+		`                .set_or_clear_metadata(lro_metadata_from_prost(self.metadata)?)`,
+		`            Self::Response(v) => Ok(Self::Output::Response(lro_any_to_prost(*v)?)),`,
+		`            Self::Response(v) => Ok(T::Response(std::boxed::Box::new(lro_any_from_prost(v)?))),`,
+		`            _ => Err(gaxi::prost::ConvertError::Unimplemented),`,
+		`impl gaxi::prost::ToProto<super::prost::google::longrunning::operation::Result> for google_cloud_longrunning::model::operation::Result {`,
+	} {
+		if !strings.Contains(contentStr, want) {
+			t.Errorf("convert.rs missing %q, got:\n%s", want, contentStr)
+		}
+	}
+	// Each LRO type appears once per helper, even if used by multiple methods.
+	if got := strings.Count(contentStr, `"type.googleapis.com/test.v1.OperationMetadata" =>`); got != 2 {
+		t.Errorf("got %d match arms for OperationMetadata, want 2", got)
+	}
+}
+
+func TestGenerateConvertNoLROAnyConversion(t *testing.T) {
+	msg := api.NewTestMessage("SimpleMessage").WithPackage("test.v1")
+	outDir := t.TempDir()
+	model := api.NewTestAPI([]*api.Message{msg}, nil, nil).WithPackageName("test.v1")
+	if err := api.CrossReference(model); err != nil {
+		t.Fatal(err)
+	}
+	cfg := &parser.ModelConfig{
+		SpecificationFormat: libconfig.SpecProtobuf,
+		Codec: map[string]string{
+			"package:wkt":       "source=google.protobuf,package=google-cloud-wkt",
+			"template-override": "templates/convert-prost",
+		},
+	}
+	if err := Generate(t.Context(), model, outDir, cfg); err != nil {
+		t.Fatal(err)
+	}
+	contents, err := os.ReadFile(filepath.Join(outDir, "convert.rs"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(contents), "lro_any_to_prost") {
+		t.Errorf("convert.rs unexpectedly contains LRO helpers:\n%s", contents)
+	}
+}
