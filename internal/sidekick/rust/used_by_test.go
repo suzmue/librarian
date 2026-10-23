@@ -521,3 +521,53 @@ func TestUsedByGrpcNamedFeature(t *testing.T) {
 		t.Errorf("mismatch (-want +got):\n%s", diff)
 	}
 }
+
+func TestFindUsedPackages_GrpcTransitiveExternalTypes(t *testing.T) {
+	expr := api.NewTestMessage("Expr").WithPackage("google.type")
+	binding := api.NewTestMessage("Binding").WithPackage("google.iam.v1").WithFields(
+		api.NewTestField("condition").WithMessageType(expr),
+	)
+	policy := api.NewTestMessage("Policy").WithPackage("google.iam.v1").WithFields(
+		api.NewTestField("bindings").WithMessageType(binding).WithRepeated(),
+	)
+	req := api.NewTestMessage("GetIamPolicyRequest").WithPackage("google.iam.v1")
+
+	for _, test := range []struct {
+		name     string
+		isGrpc   bool
+		wantType bool
+	}{
+		{name: "grpc", isGrpc: true, wantType: true},
+		{name: "http", isGrpc: false, wantType: false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			method := api.NewTestMethod("GetIamPolicy").
+				WithInput(req).
+				WithOutput(policy).
+				WithSourceServiceID(".google.iam.v1.IAMPolicy")
+			method.Codec = &methodAnnotation{IsGrpc: test.isGrpc}
+			service := api.NewTestService("Echo").WithPackage("google.showcase.v1beta1").WithMethods(method)
+			model := api.NewTestAPI(nil, nil, []*api.Service{service})
+			model.AddMessage(req)
+			model.AddMessage(policy)
+			model.AddMessage(binding)
+			model.AddMessage(expr)
+			c, err := newCodec(libconfig.SpecProtobuf, map[string]string{
+				"package:iam":  "package=google-cloud-iam-v1,source=google.iam.v1",
+				"package:type": "package=google-cloud-type,source=google.type",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			findUsedPackages(model, c)
+			got := map[string]bool{}
+			for _, pkg := range c.extraPackages {
+				got[pkg.name] = pkg.used
+			}
+			want := map[string]bool{"iam": true, "type": test.wantType}
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}

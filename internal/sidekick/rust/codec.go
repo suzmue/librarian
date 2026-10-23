@@ -1509,6 +1509,44 @@ func findUsedPackagesMessage(message *api.Message, model *api.API, c *codec, vis
 	}
 }
 
+func findUsedPackagesGrpcMessage(message *api.Message, model *api.API, c *codec, visited map[string]bool) {
+	if message == nil || visited[message.ID] {
+		return
+	}
+	visited[message.ID] = true
+	usePackage(message.Package, model, c)
+	if message.ID == ".google.rpc.Status" {
+		return
+	}
+	if message.Parent != nil {
+		findUsedPackagesGrpcMessage(message.Parent, model, c, visited)
+	}
+	checkField := func(f *api.Field) {
+		if f.TypezID == ".google.protobuf.Any" {
+			return
+		}
+		switch f.Typez {
+		case api.TypezMessage:
+			findUsedPackagesGrpcMessage(model.Message(f.TypezID), model, c, visited)
+		case api.TypezEnum:
+			if fe := model.Enum(f.TypezID); fe != nil {
+				usePackage(fe.Package, model, c)
+				if fe.Parent != nil {
+					findUsedPackagesGrpcMessage(fe.Parent, model, c, visited)
+				}
+			}
+		}
+	}
+	for _, f := range message.Fields {
+		checkField(f)
+	}
+	for _, o := range message.OneOfs {
+		for _, f := range o.Fields {
+			checkField(f)
+		}
+	}
+}
+
 func findUsedPackages(model *api.API, c *codec) {
 	for _, message := range model.Messages {
 		findUsedPackagesMessage(message, model, c, map[string]bool{})
@@ -1533,6 +1571,10 @@ func findUsedPackages(model *api.API, c *codec) {
 				}
 			}
 		}
+	}
+	grpcVisited := map[string]bool{}
+	for _, id := range GrpcRootTypeIDs(model) {
+		findUsedPackagesGrpcMessage(model.Message(id), model, c, grpcVisited)
 	}
 }
 

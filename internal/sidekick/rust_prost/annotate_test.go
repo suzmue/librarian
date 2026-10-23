@@ -121,3 +121,99 @@ func TestMethodAnnotations(t *testing.T) {
 		t.Errorf("mismatch (-want +got):\n%s", diff)
 	}
 }
+
+func TestModelAnnotationsMixinFiles(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		includeList []string
+		service     *api.Service
+		unusedTypes string
+		wantFiles   []string
+	}{
+		{
+			name:        "all mixins used",
+			includeList: []string{"f1.proto"},
+			service: api.NewTestService("Workflows").
+				WithPackage("google.cloud.workflows.v1").
+				WithMethods(
+					api.NewTestMethod("GetLocation").
+						WithSourceServiceID(".google.cloud.location.Locations").
+						WithInputTypeID(".google.cloud.location.GetLocationRequest"),
+					api.NewTestMethod("ListLocations").
+						WithSourceServiceID(".google.cloud.location.Locations").
+						WithInputTypeID(".google.cloud.location.ListLocationsRequest"),
+					api.NewTestMethod("GetIamPolicy").
+						WithSourceServiceID(".google.iam.v1.IAMPolicy").
+						WithInputTypeID(".google.iam.v1.GetIamPolicyRequest"),
+					api.NewTestMethod("GetOperation").
+						WithSourceServiceID(".google.longrunning.Operations").
+						WithInputTypeID(".google.longrunning.GetOperationRequest"),
+				),
+			wantFiles: []string{
+				"../../testdata/googleapis/google/type/f1.proto",
+				"google/cloud/location/locations.proto",
+				"google/iam/v1/iam_policy.proto",
+				"google/longrunning/operations.proto",
+			},
+		},
+		{
+			name:        "unused mixin types skipped",
+			includeList: []string{"f1.proto"},
+			service: api.NewTestService("Workflows").
+				WithPackage("google.cloud.workflows.v1").
+				WithMethods(
+					api.NewTestMethod("GetLocation").
+						WithSourceServiceID(".google.cloud.location.Locations").
+						WithInputTypeID(".google.cloud.location.GetLocationRequest"),
+					api.NewTestMethod("GetOperation").
+						WithSourceServiceID(".google.longrunning.Operations").
+						WithInputTypeID(".google.longrunning.GetOperationRequest"),
+				),
+			unusedTypes: ".google.cloud.location.GetLocationRequest",
+			wantFiles: []string{
+				"../../testdata/googleapis/google/type/f1.proto",
+				"google/longrunning/operations.proto",
+			},
+		},
+		{
+			name:        "same service ID is not treated as mixin",
+			includeList: []string{"google/cloud/location/locations.proto"},
+			service: api.NewTestService("Locations").
+				WithPackage("google.cloud.location").
+				WithMethods(
+					api.NewTestMethod("GetLocation").
+						WithSourceServiceID(".google.cloud.location.Locations").
+						WithInputTypeID(".google.cloud.location.GetLocationRequest"),
+				),
+			wantFiles: []string{
+				"../../testdata/googleapis/google/type/google/cloud/location/locations.proto",
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := &parser.ModelConfig{
+				SpecificationFormat: libconfig.SpecProtobuf,
+				SpecificationSource: "../../testdata/googleapis/google/type",
+				Source: &sources.SourceConfig{
+					IncludeList: test.includeList,
+				},
+				Codec: map[string]string{
+					"copyright-year": "2035",
+					"unused-types":   test.unusedTypes,
+				},
+			}
+			model := api.NewTestAPI(nil, nil, []*api.Service{test.service})
+			codec := newCodec(cfg)
+			if err := codec.annotateModel(model, cfg); err != nil {
+				t.Fatal(err)
+			}
+			ann, ok := model.Codec.(*modelAnnotations)
+			if !ok {
+				t.Fatalf("unexpected codec type %T", model.Codec)
+			}
+			if diff := cmp.Diff(test.wantFiles, ann.Files); diff != "" {
+				t.Errorf("Files mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}

@@ -16,6 +16,7 @@
 package rust_prost
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/googleapis/librarian/internal/license"
@@ -24,6 +25,14 @@ import (
 	"github.com/googleapis/librarian/internal/sidekick/protobuf"
 	"github.com/googleapis/librarian/internal/sidekick/rust"
 )
+
+// mixinProtoFiles maps well-known mixin service IDs to their proto file paths
+// relative to the googleapis root.
+var mixinProtoFiles = map[string]string{
+	".google.cloud.location.Locations": "google/cloud/location/locations.proto",
+	".google.iam.v1.IAMPolicy":         "google/iam/v1/iam_policy.proto",
+	".google.longrunning.Operations":   "google/longrunning/operations.proto",
+}
 
 type modelAnnotations struct {
 	CopyrightYear string
@@ -58,6 +67,7 @@ func (codec *codec) annotateModel(model *api.API, cfg *parser.ModelConfig) error
 	for i, f := range files {
 		files[i] = strings.TrimPrefix(f, rootSource+"/")
 	}
+	files = append(files, codec.mixinFiles(model, files)...)
 	annotations := &modelAnnotations{
 		CopyrightYear: codec.GenerationYear,
 		BoilerPlate: append(license.HeaderBulk(),
@@ -91,4 +101,37 @@ func (codec *codec) annotateMethod(method *api.Method) {
 		ID: strings.TrimPrefix(method.ID, "."),
 	}
 	method.Codec = annotations
+}
+
+func (codec *codec) mixinFiles(model *api.API, existingFiles []string) []string {
+	var extra []string
+	for _, s := range model.Services {
+		for _, m := range s.Methods {
+			if m.SourceServiceID == "" || m.SourceServiceID == s.ID {
+				continue
+			}
+			protoFile, ok := mixinProtoFiles[m.SourceServiceID]
+			if !ok {
+				continue
+			}
+			if m.InputTypeID != "" && slices.Contains(codec.UnusedTypes, m.InputTypeID) {
+				continue
+			}
+			if hasProtoFile(existingFiles, protoFile) || slices.Contains(extra, protoFile) {
+				continue
+			}
+			extra = append(extra, protoFile)
+		}
+	}
+	slices.Sort(extra)
+	return extra
+}
+
+func hasProtoFile(files []string, target string) bool {
+	for _, f := range files {
+		if f == target || strings.HasSuffix(f, "/"+target) {
+			return true
+		}
+	}
+	return false
 }
