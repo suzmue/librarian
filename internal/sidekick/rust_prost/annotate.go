@@ -111,27 +111,15 @@ func (codec *codec) mixinFiles(model *api.API, existingFiles []string) []string 
 				continue
 			}
 			protoFile, ok := mixinProtoFiles[m.SourceServiceID]
-			if !ok {
+			if !ok || slices.Contains(existingFiles, protoFile) {
 				continue
 			}
 			if m.InputTypeID != "" && slices.Contains(codec.UnusedTypes, m.InputTypeID) {
-				continue
-			}
-			if hasProtoFile(existingFiles, protoFile) || slices.Contains(extra, protoFile) {
 				continue
 			}
 			extra = append(extra, protoFile)
 		}
 	}
 	slices.Sort(extra)
-	return extra
-}
-
-func hasProtoFile(files []string, target string) bool {
-	for _, f := range files {
-		if f == target || strings.HasSuffix(f, "/"+target) {
-			return true
-		}
-	}
-	return false
+	return slices.Compact(extra)
 }

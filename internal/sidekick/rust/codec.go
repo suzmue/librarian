@@ -1480,7 +1480,10 @@ func usePackage(source string, model *api.API, c *codec) {
 	}
 }
 
-func findUsedPackagesMessage(message *api.Message, model *api.API, c *codec, visited map[string]bool) {
+func findUsedPackagesMessage(message *api.Message, model *api.API, c *codec, visited map[string]bool, transitive bool) {
+	if message == nil {
+		return
+	}
 	if _, ok := visited[message.ID]; ok {
 		return
 	}
@@ -1490,66 +1493,28 @@ func findUsedPackagesMessage(message *api.Message, model *api.API, c *codec, vis
 		usePackage(e.Package, model, c)
 	}
 	for _, m := range message.Messages {
-		findUsedPackagesMessage(m, model, c, visited)
+		findUsedPackagesMessage(m, model, c, visited, transitive)
 	}
 	for _, f := range message.Fields {
 		switch f.Typez {
 		case api.TypezMessage:
 			if fm := model.Message(f.TypezID); fm != nil {
 				usePackage(fm.Package, model, c)
-				if f.Map {
-					findUsedPackagesMessage(fm, model, c, visited)
+				if f.Map || transitive {
+					findUsedPackagesMessage(fm, model, c, visited, transitive)
 				}
 			}
 		case api.TypezEnum:
 			if fe := model.Enum(f.TypezID); fe != nil {
 				usePackage(fe.Package, model, c)
 			}
-		}
-	}
-}
-
-func findUsedPackagesGrpcMessage(message *api.Message, model *api.API, c *codec, visited map[string]bool) {
-	if message == nil || visited[message.ID] {
-		return
-	}
-	visited[message.ID] = true
-	usePackage(message.Package, model, c)
-	if message.ID == ".google.rpc.Status" {
-		return
-	}
-	if message.Parent != nil {
-		findUsedPackagesGrpcMessage(message.Parent, model, c, visited)
-	}
-	checkField := func(f *api.Field) {
-		if f.TypezID == ".google.protobuf.Any" {
-			return
-		}
-		switch f.Typez {
-		case api.TypezMessage:
-			findUsedPackagesGrpcMessage(model.Message(f.TypezID), model, c, visited)
-		case api.TypezEnum:
-			if fe := model.Enum(f.TypezID); fe != nil {
-				usePackage(fe.Package, model, c)
-				if fe.Parent != nil {
-					findUsedPackagesGrpcMessage(fe.Parent, model, c, visited)
-				}
-			}
-		}
-	}
-	for _, f := range message.Fields {
-		checkField(f)
-	}
-	for _, o := range message.OneOfs {
-		for _, f := range o.Fields {
-			checkField(f)
 		}
 	}
 }
 
 func findUsedPackages(model *api.API, c *codec) {
 	for _, message := range model.Messages {
-		findUsedPackagesMessage(message, model, c, map[string]bool{})
+		findUsedPackagesMessage(message, model, c, map[string]bool{}, false)
 	}
 	for _, enum := range model.Enums {
 		usePackage(enum.Package, model, c)
@@ -1557,7 +1522,7 @@ func findUsedPackages(model *api.API, c *codec) {
 	for _, s := range model.Services {
 		for _, method := range s.Methods {
 			if m := model.Message(method.InputTypeID); m != nil {
-				findUsedPackagesMessage(m, model, c, map[string]bool{})
+				findUsedPackagesMessage(m, model, c, map[string]bool{}, false)
 			}
 			if m := model.Message(method.OutputTypeID); m != nil {
 				usePackage(m.Package, model, c)
@@ -1574,7 +1539,7 @@ func findUsedPackages(model *api.API, c *codec) {
 	}
 	grpcVisited := map[string]bool{}
 	for _, id := range GrpcRootTypeIDs(model) {
-		findUsedPackagesGrpcMessage(model.Message(id), model, c, grpcVisited)
+		findUsedPackagesMessage(model.Message(id), model, c, grpcVisited, true)
 	}
 }
 
